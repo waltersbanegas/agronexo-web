@@ -14,7 +14,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 function App() {
   // ✅ IP REAL
-  const API_URL = 'http://10.85.135.242:5000/api'; 
+  const API_URL = 'https://agronexo-backend.onrender.com/api'; 
 
   const [seccion, setSeccion] = useState('AGRICULTURA'); 
   const [rol, setRol] = useState('PRODUCTOR'); 
