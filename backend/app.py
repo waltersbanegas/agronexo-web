@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -6,11 +7,22 @@ import traceback
 
 app = Flask(__name__)
 CORS(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///agronexo.db'
+
+# --- CONFIGURACIÓN DE BASE DE DATOS BLINDADA ---
+# 1. Busca la variable DATABASE_URL (que pondremos en Render).
+# 2. Si no la encuentra, usa la local 'sqlite:///agronexo.db'.
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///agronexo.db')
+
+# 3. Corrección para Render (a veces da direcciones antiguas 'postgres://' que fallan)
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 
-# --- MODELOS ---
+# --- MODELOS (TABLAS) ---
 class Lote(db.Model):
     __tablename__ = 'lote'
     id = db.Column(db.Integer, primary_key=True)
@@ -60,7 +72,7 @@ class Gasto(db.Model):
     lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=True)
 
-# --- RUTAS ---
+# --- RUTAS (API) ---
 
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
@@ -68,6 +80,10 @@ def obtener_liquidaciones():
         resultados = []
         contratos = ContratoCampo.query.all()
         for contrato in contratos:
+            # Buscar el lote correspondiente (si existe)
+            lote = Lote.query.get(contrato.lote_id)
+            if not lote: continue 
+
             cosechas = Cosecha.query.filter_by(lote_id=contrato.lote_id).all()
             total_kilos = sum(c.kilos_totales for c in cosechas)
             
@@ -80,9 +96,7 @@ def obtener_liquidaciones():
             gastos = Gasto.query.filter_by(lote_id=contrato.lote_id).all()
             total_gastos = sum(g.monto for g in gastos)
 
-            lote = Lote.query.get(contrato.lote_id)
-            if not lote: continue # Seguridad por si el lote se borró mal
-
+            # Contar animales en este lote
             cant_animales = Animal.query.filter_by(lote_actual_id=lote.id).count()
             
             resultados.append({
@@ -104,6 +118,7 @@ def crear_contrato():
         d = request.json
         has = float(d['hectareas']) if d['hectareas'] else 0.0
         porc = float(d['porcentaje']) if d['porcentaje'] else 0.0
+        
         lat = float(d['lat']) if d.get('lat') else None
         lng = float(d['lng']) if d.get('lng') else None
 
@@ -119,8 +134,6 @@ def crear_contrato():
         print(e)
         return jsonify({"error": str(e)}), 500
 
-# --- NUEVAS RUTAS PARA EDITAR Y BORRAR ---
-
 @app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
 def editar_lote(lote_id):
     try:
@@ -128,13 +141,11 @@ def editar_lote(lote_id):
         lote = Lote.query.get(lote_id)
         if not lote: return jsonify({"error": "No existe"}), 404
 
-        # Actualizar Lote
         lote.nombre = d['nombreLote']
         lote.hectareas = float(d['hectareas'])
         if d.get('lat'): lote.latitud = float(d['lat'])
         if d.get('lng'): lote.longitud = float(d['lng'])
         
-        # Actualizar Contrato (buscamos el asociado al lote)
         contrato = ContratoCampo.query.filter_by(lote_id=lote.id).first()
         if contrato:
             contrato.propietario = d['propietario']
@@ -149,21 +160,21 @@ def editar_lote(lote_id):
 @app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
 def eliminar_lote(lote_id):
     try:
-        # 1. Borrar Contrato asociado
         ContratoCampo.query.filter_by(lote_id=lote_id).delete()
-        # 2. Borrar Gastos asociados al lote
         Gasto.query.filter_by(lote_id=lote_id).delete()
-        # 3. Borrar Cosechas asociadas
         Cosecha.query.filter_by(lote_id=lote_id).delete()
-        # 4. Finalmente borrar el lote
-        Lote.query.filter_by(id=lote_id).delete()
         
+        # Desvincular animales (ponerlos en 'sin lote') antes de borrar el lote
+        animales = Animal.query.filter_by(lote_actual_id=lote_id).all()
+        for a in animales:
+            a.lote_actual_id = None
+        
+        Lote.query.filter_by(id=lote_id).delete()
         db.session.commit()
         return jsonify({"mensaje": "Eliminado"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ... (Rutas de Animales, Pesaje, Cosecha, Gasto se mantienen igual) ...
 @app.route('/api/animales', methods=['GET'])
 def obtener_animales():
     try:
@@ -173,6 +184,7 @@ def obtener_animales():
             pesajes = Peso.query.filter_by(animal_id=vaca.id).order_by(Peso.fecha.desc()).all()
             gastos = Gasto.query.filter_by(animal_id=vaca.id).all()
             total_gastos = sum(g.monto for g in gastos)
+
             peso_act = 0; gdp = 0; ult = "Sin datos"
             if pesajes:
                 peso_act = pesajes[0].kilos
@@ -181,9 +193,16 @@ def obtener_animales():
                     dif_k = peso_act - pesajes[1].kilos
                     dif_d = (pesajes[0].fecha - pesajes[1].fecha).days
                     if dif_d > 0: gdp = dif_k / dif_d
-            lista.append({"id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza, "categoria": vaca.categoria, "peso_actual": peso_act, "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos})
+            
+            lista.append({
+                "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza,
+                "categoria": vaca.categoria, "peso_actual": peso_act,
+                "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos
+            })
         return jsonify(lista)
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/nuevo_animal', methods=['POST'])
 def nuevo_animal():
@@ -199,7 +218,7 @@ def nuevo_animal():
         db.session.add(Peso(animal_id=animal.id, kilos=float(d['peso_inicial']), fecha=fi))
         db.session.commit()
     return jsonify({"mensaje": "Creado"}), 201
-
+    
 @app.route('/api/nuevo_pesaje', methods=['POST'])
 def nuevo_pesaje():
     d = request.json
@@ -232,6 +251,9 @@ def nuevo_gasto():
     db.session.commit()
     return jsonify({"mensaje": "Gasto Guardado"}), 201
 
+# --- ARRANQUE ---
+# Esto asegura que las tablas se creen SIEMPRE, 
+# tanto en tu PC como en Render.
 with app.app_context():
     db.create_all()
 
