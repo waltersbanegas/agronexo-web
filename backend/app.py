@@ -5,7 +5,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, text # 🆕 IMPORTANTE: Agregamos 'text'
 import traceback
 
 app = Flask(__name__)
@@ -51,12 +51,11 @@ class Animal(db.Model):
     __tablename__ = 'animal'
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(20), unique=True)
-    categoria = db.Column(db.String(50)) # Vaca, Toro, Novillo, etc.
+    categoria = db.Column(db.String(50))
     raza = db.Column(db.String(50))
     fecha_ingreso = db.Column(db.DateTime, default=datetime.utcnow)
     lote_actual_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
-    # 🆕 NUEVO CAMPO: ESTADO REPRODUCTIVO (Solo para Vacas/Vaquillonas)
-    estado_reproductivo = db.Column(db.String(50), default='VACIA') # VACIA, INSEMINADA, PREÑADA
+    estado_reproductivo = db.Column(db.String(50), default='VACIA') 
 
 class Peso(db.Model):
     __tablename__ = 'peso'
@@ -114,14 +113,13 @@ class VentaGrano(db.Model):
     origen = db.Column(db.String(50))
     silo_id = db.Column(db.Integer, db.ForeignKey('silo.id'), nullable=True)
 
-# 🆕 NUEVA TABLA: EVENTOS REPRODUCTIVOS
 class EventoReproductivo(db.Model):
     __tablename__ = 'evento_reproductivo'
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'))
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
-    tipo = db.Column(db.String(50)) # INSEMINACION, TACTO, PARTO
-    detalle = db.Column(db.String(100)) # Ej: "Toro 001", "Positivo", "Macho"
+    tipo = db.Column(db.String(50)) 
+    detalle = db.Column(db.String(100)) 
 
 # --- RUTAS ---
 
@@ -131,6 +129,9 @@ def resumen_general():
         hoy = datetime.utcnow()
         mes_actual = hoy.month
         anio_actual = hoy.year
+        # Verificar tablas antes de consultar
+        db.create_all()
+        
         subquery_vendidos = db.session.query(Venta.animal_id)
         total_cabezas = db.session.query(Animal).filter(Animal.id.notin_(subquery_vendidos)).count()
         total_hectareas = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
@@ -198,12 +199,11 @@ def obtener_animales():
                 "categoria": vaca.categoria, "peso_actual": peso_act, 
                 "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos, 
                 "ubicacion": ubicacion, "lote_actual_id": vaca.lote_actual_id,
-                "estado_reproductivo": vaca.estado_reproductivo # 🆕 Enviamos estado
+                "estado_reproductivo": getattr(vaca, 'estado_reproductivo', 'VACIA') # Safe access
             })
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 NUEVO EVENTO REPRODUCTIVO (INSEMINACION / TACTO / PARTO)
 @app.route('/api/nuevo_evento_reproductivo', methods=['POST'])
 def nuevo_evento_reproductivo():
     try:
@@ -215,21 +215,14 @@ def nuevo_evento_reproductivo():
         if d.get('fecha'):
             try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
             except: pass
-        
-        # Guardar evento
         evento = EventoReproductivo(animal_id=animal_id, tipo=tipo, detalle=detalle, fecha=fecha)
         db.session.add(evento)
-
-        # Actualizar estado de la vaca automáticamente
         animal = Animal.query.get(animal_id)
-        if tipo == 'INSEMINACION':
-            animal.estado_reproductivo = 'INSEMINADA'
+        if tipo == 'INSEMINACION': animal.estado_reproductivo = 'INSEMINADA'
         elif tipo == 'TACTO':
             if detalle == 'POSITIVO': animal.estado_reproductivo = 'PREÑADA'
             else: animal.estado_reproductivo = 'VACIA'
-        elif tipo == 'PARTO':
-            animal.estado_reproductivo = 'PARIDA' # O vuelta a VACIA según criterio
-        
+        elif tipo == 'PARTO': animal.estado_reproductivo = 'PARIDA'
         db.session.commit()
         return jsonify({"mensaje": "Evento registrado y estado actualizado"})
     except Exception as e: return jsonify({"error": str(e)}), 500
@@ -243,22 +236,12 @@ def detalle_animal(id):
         data_pesos = [{"fecha": p.fecha.strftime("%d/%m"), "kilos": p.kilos} for p in pesajes]
         gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
         data_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
-        
-        # 🆕 OBTENER HISTORIAL REPRODUCTIVO
         eventos_repro = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
         data_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos_repro]
-
-        return jsonify({ 
-            "caravana": animal.caravana, 
-            "historial_pesos": data_pesos, 
-            "historial_gastos": data_gastos,
-            "historial_repro": data_repro,
-            "estado_reproductivo": animal.estado_reproductivo
-        })
+        return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos, "historial_repro": data_repro, "estado_reproductivo": getattr(animal, 'estado_reproductivo', 'VACIA') })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# [RESTO DE RUTAS IGUAL QUE ANTES: registrar_venta, silos, etc...]
-# Mantenemos las rutas existentes para no romper nada.
+# [OTRAS RUTAS DE LOGÍSTICA]
 @app.route('/api/silos', methods=['GET'])
 def obtener_silos():
     silos = Silo.query.all()
@@ -408,7 +391,7 @@ def exportar_excel():
             peso_actual = pesajes[0].kilos if pesajes else 0
             gastos_animal = Gasto.query.filter_by(animal_id=a.id).all()
             total_gastos_animal = sum(g.monto for g in gastos_animal)
-            data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Peso (kg)": peso_actual, "Costo Acum ($)": total_gastos_animal, "Estado Repro": a.estado_reproductivo })
+            data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Peso (kg)": peso_actual, "Costo Acum ($)": total_gastos_animal, "Estado Repro": getattr(a, 'estado_reproductivo', 'VACIA') })
 
         data_silos = []
         silos = Silo.query.all()
@@ -452,17 +435,18 @@ def editar_lote(lote_id):
 
 @app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
 def eliminar_lote(lote_id):
-    ContratoCampo.query.filter_by(lote_id=lote_id).delete()
-    Gasto.query.filter_by(lote_id=lote_id).delete()
-    Cosecha.query.filter_by(lote_id=lote_id).delete()
-    Lote.query.filter_by(id=lote_id).delete()
-    db.session.commit()
-    return jsonify({"mensaje": "Eliminado"})
+    try:
+        ContratoCampo.query.filter_by(lote_id=lote_id).delete()
+        Gasto.query.filter_by(lote_id=lote_id).delete()
+        Cosecha.query.filter_by(lote_id=lote_id).delete()
+        Lote.query.filter_by(id=lote_id).delete()
+        db.session.commit()
+        return jsonify({"mensaje": "Eliminado"})
+    except: return jsonify({"error": "Error"}), 500
 
 @app.route('/api/nuevo_animal', methods=['POST'])
 def nuevo_animal():
     d = request.json
-    # Por defecto, estado VACIA
     animal = Animal(caravana=d['caravana'], raza=d['raza'], categoria=d['categoria'], estado_reproductivo='VACIA')
     db.session.add(animal); db.session.commit()
     if d['peso_inicial']: db.session.add(Peso(animal_id=animal.id, kilos=float(d['peso_inicial']))); db.session.commit()
@@ -481,5 +465,18 @@ def nuevo_gasto():
     db.session.add(gasto); db.session.commit()
     return jsonify({"mensaje": "Gasto Guardado"}), 201
 
-with app.app_context(): db.create_all()
-if __name__ == '__main__': app.run(debug=True, port=5000, host='0.0.0.0')
+# --- BLOQUE DE REPARACIÓN DE BASE DE DATOS (AUTO-MIGRACIÓN) ---
+with app.app_context():
+    db.create_all() # Asegura que las tablas existan
+    try:
+        # Intenta agregar la columna si falta (PostgreSQL syntax)
+        with db.engine.connect() as conn:
+            conn.execute(text('ALTER TABLE animal ADD COLUMN IF NOT EXISTS estado_reproductivo VARCHAR(50) DEFAULT "VACIA";'))
+            conn.commit()
+            print("✅ Verificación de columna 'estado_reproductivo' completada.")
+    except Exception as e:
+        print("ℹ️ Nota de migración:", e)
+# ---------------------------------------------
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000, host='0.0.0.0')
