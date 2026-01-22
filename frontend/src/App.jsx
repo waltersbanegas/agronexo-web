@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X } from 'lucide-react';
+import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown } from 'lucide-react';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -63,6 +63,23 @@ function App() {
     axios.get(url).then(res => setClima({ temp: res.data.current_weather.temperature, wind: res.data.current_weather.windspeed, rain: res.data.daily.precipitation_sum[0] })).catch(e => console.log(e));
   };
 
+  // Función para descargar Excel
+  const descargarExcel = async () => {
+    try {
+        const response = await axios.get(`${API_URL}/exportar_excel`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'Reporte_AgroNexo.xlsx');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (error) {
+        console.error("Error descargando reporte", error);
+        alert("Error al descargar el reporte.");
+    }
+  };
+
   useEffect(() => { cargarTodo(); }, []);
 
   function ClickEnMapa() { useMapEvents({ click(e) { setTempPos(e.latlng); }, }); return null; }
@@ -103,26 +120,29 @@ function App() {
               width: '250px', height: '100%', background: '#0f172a', color: 'white', display: 'flex', flexDirection: 'column', padding: '20px', gap: '10px',
               position: isMobile ? 'absolute' : 'relative', left: isMobile ? (menuAbierto ? 0 : '-100%') : 0, zIndex: 30, transition: 'left 0.3s ease',
               boxShadow: isMobile ? '2px 0 10px rgba(0,0,0,0.5)' : 'none',
-              overflowY: 'auto' // ⚠️ IMPORTANTE: Permite hacer scroll si el menú es muy largo
+              overflowY: 'auto'
           }}>
              {!isMobile && <h2 style={{color:'#4ade80', marginBottom:'30px'}}>AgroNexo ☁️</h2>}
              <button onClick={() => cambiarSeccion('MAPA')} style={{...btnMenu, background: seccion === 'MAPA' ? '#1e293b' : 'transparent'}}><MapPin size={20}/> Mapa General</button>
              <button onClick={() => cambiarSeccion('AGRICULTURA')} style={{...btnMenu, background: seccion === 'AGRICULTURA' ? '#1e293b' : 'transparent'}}><Sprout size={20}/> Agricultura</button>
              <button onClick={() => cambiarSeccion('GANADERIA')} style={{...btnMenu, background: seccion === 'GANADERIA' ? '#1e293b' : 'transparent'}}><Tractor size={20}/> Ganadería</button>
              
+             {/* BOTÓN EXCEL */}
+             <button onClick={descargarExcel} style={{...btnMenu, marginTop:'10px', color:'#38bdf8'}}>
+                <FileDown size={20}/> Exportar Reporte
+             </button>
+
              <div style={{marginTop:'auto', background:'#1e293b', padding:'15px', borderRadius:'10px', border:'1px solid #334155'}}>
                 <small style={{color:'#94a3b8', display:'block', marginBottom:'5px', fontSize:'0.7rem'}}>CLIMA EN:</small>
                 <strong style={{color:'white', display:'block', marginBottom:'10px', fontSize:'0.9rem'}}>{loteClimaNombre}</strong>
                 {clima ? ( <> <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><Thermometer size={18} color="#fcd34d"/> <span style={{fontSize:'1.1rem', fontWeight:'bold'}}>{clima.temp}°C</span></div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#94a3b8'}}><Wind size={16}/> {clima.wind} km/h</div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#60a5fa', marginTop:'5px'}}><CloudRain size={16}/> {clima.rain} mm</div> </> ) : <span style={{color:'#64748b', fontSize:'0.8rem'}}>Cargando...</span>}
             </div>
 
-            {/* ✅ LEVANTADO 80px DEL FONDO */}
             <div style={{marginTop: '10px', borderTop:'1px solid #334155', paddingTop:'20px', marginBottom: '80px'}}>
                  <button onClick={() => setRol(rol === 'PRODUCTOR' ? 'PROPIETARIO' : 'PRODUCTOR')} style={{...btnMenu, fontSize:'0.8rem', background:'#334155'}}>
                     <RefreshCw size={14}/> Modo: {rol}
                  </button>
             </div>
-
           </div>
 
           {isMobile && menuAbierto && (<div onClick={() => setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex: 25}}></div>)}
@@ -173,15 +193,11 @@ function App() {
                   <form onSubmit={guardarContrato} style={formStyle}>
                       <label style={labelStyle}>Nombre del Lote:</label>
                       <input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/>
-                      
                       <label style={labelStyle}>Hectáreas:</label>
                       <input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/>
-                      
                       <button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS Detectado' : 'Usar mi GPS'}</button>
-                      
                       <label style={labelStyle}>Dueño / Contraparte:</label>
                       <input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/>
-                      
                       <label style={labelStyle}>Tipo de Contrato:</label>
                       <div style={{display:'flex', gap:'10px'}}>
                           <select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select>
@@ -197,19 +213,14 @@ function App() {
                   <form onSubmit={guardarAnimal} style={formStyle}>
                       <label style={labelStyle}>Fecha Ingreso:</label>
                       <input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/>
-                      
                       <label style={labelStyle}>Caravana (ID):</label>
                       <input placeholder="Ej: A-001" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/>
-                      
                       <label style={labelStyle}>Raza:</label>
                       <select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option></select>
-                      
                       <label style={labelStyle}>Categoría:</label>
                       <select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option></select>
-                      
                       <label style={labelStyle}>Peso Inicial (Kg):</label>
                       <input placeholder="Kilos" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/>
-                      
                       <button style={btnAzul}>Guardar</button>
                       <button type="button" onClick={()=>setShowModalAnimal(false)} style={btnGris}>Cancelar</button>
                   </form>
