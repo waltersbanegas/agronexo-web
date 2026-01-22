@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAx
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe, CloudLightning, LayoutDashboard, Warehouse, Factory, Dna, Heart } from 'lucide-react';
+import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe, CloudLightning, LayoutDashboard, Warehouse, Factory, Dna } from 'lucide-react';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -45,7 +45,6 @@ function App() {
   const [showModalLluvia, setShowModalLluvia] = useState(false);
   const [showModalNuevoSilo, setShowModalNuevoSilo] = useState(false);
   const [showModalVentaGrano, setShowModalVentaGrano] = useState(false);
-  // 🆕 MODAL EVENTO REPRODUCTIVO
   const [showModalRepro, setShowModalRepro] = useState(false);
   
   const [modoEdicion, setModoEdicion] = useState(null); 
@@ -65,7 +64,6 @@ function App() {
   const [datosVenta, setDatosVenta] = useState({ animal_id: null, fecha: '', comprador: '', kilos: '', precio: '' });
   const [datosSanidad, setDatosSanidad] = useState({ lote_id: 'all', concepto: '', monto: '', fecha: '' });
   const [nuevoRegistroLluvia, setNuevoRegistroLluvia] = useState({ lote_id: '', milimetros: '', fecha: '' });
-  // 🆕 DATOS EVENTO REPRODUCTIVO
   const [nuevoEventoRepro, setNuevoEventoRepro] = useState({ animal_id: null, tipo: 'INSEMINACION', detalle: '', fecha: '' });
 
   useEffect(() => {
@@ -113,31 +111,21 @@ function App() {
       axios.get(`${API_URL}/detalle_animal/${vaca.id}`).then(res => setDatosDetalleAnimal(res.data));
   };
 
-  // 🆕 ABRIR MODAL REPRO
   const iniciarEventoRepro = () => {
       if (!datosDetalleAnimal) return;
-      setNuevoEventoRepro({ animal_id: datosDetalleAnimal.caravana, tipo: 'INSEMINACION', detalle: '', fecha: '' }); 
-      // Usamos ID real en el envío, aquí solo inicializamos
+      const animalObj = animales.find(a => a.caravana === datosDetalleAnimal.caravana);
+      setNuevoEventoRepro({ animal_id: animalObj.id, tipo: 'INSEMINACION', detalle: '', fecha: '' }); 
       setShowModalRepro(true);
   }
 
-  // 🆕 GUARDAR EVENTO REPRO
   const guardarEventoRepro = (e) => {
       e.preventDefault();
-      // Buscamos el ID real basado en caravana o lo pasamos directo si lo tenemos
-      // Mejor pasarlo directo. Lo busco en animales.
-      const animalObj = animales.find(a => a.caravana === datosDetalleAnimal.caravana);
-      if(!animalObj) return;
-
-      axios.post(`${API_URL}/nuevo_evento_reproductivo`, {
-          ...nuevoEventoRepro,
-          animal_id: animalObj.id
-      }).then(() => {
+      axios.post(`${API_URL}/nuevo_evento_reproductivo`, nuevoEventoRepro).then(() => {
           alert("Evento registrado 🧬");
           setShowModalRepro(false);
-          // Recargamos el detalle para ver el cambio
-          axios.get(`${API_URL}/detalle_animal/${animalObj.id}`).then(res => setDatosDetalleAnimal(res.data));
-          cargarTodo(); // Para actualizar lista general
+          const animalObj = animales.find(a => a.id === nuevoEventoRepro.animal_id);
+          if(animalObj) axios.get(`${API_URL}/detalle_animal/${animalObj.id}`).then(res => setDatosDetalleAnimal(res.data));
+          cargarTodo();
       });
   }
 
@@ -391,10 +379,10 @@ function App() {
                                             {modoSeleccion && (<div style={{color: animalesSeleccionados.includes(vaca.id) ? '#2563eb' : '#cbd5e1'}}>{animalesSeleccionados.includes(vaca.id) ? <CheckSquare size={24}/> : <Square size={24}/>}</div>)}
                                             <h2 style={{margin:0, color:'#0f172a'}}>RP: {vaca.caravana}</h2>
                                         </div>
-                                        <span style={{...tagEstilo, background:'#ecfccb', color:'#3f6212'}}>{vaca.raza}</span>
+                                        {/* 🆕 AQUI MOSTRAMOS LA CATEGORIA + RAZA */}
+                                        <span style={{...tagEstilo, background:'#ecfccb', color:'#3f6212'}}>{vaca.categoria} {vaca.raza}</span>
                                     </div>
                                     <div style={{background:'#f8fafc', padding:'15px', borderRadius:'10px', margin:'15px 0'}}> 
-                                        {/* 🆕 MOSTRAR ESTADO REPRODUCTIVO */}
                                         <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', fontSize:'0.9rem'}}>
                                             <span style={{color:'#64748b'}}>Estado:</span>
                                             <strong style={{color: vaca.estado_reproductivo === 'PREÑADA' ? '#16a34a' : (vaca.estado_reproductivo === 'INSEMINADA' ? '#f59e0b' : '#64748b')}}>{vaca.estado_reproductivo || 'VACIA'}</strong>
@@ -415,70 +403,21 @@ function App() {
 
               {modoSeleccion && animalesSeleccionados.length > 0 && (<div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'white', padding:'15px', borderTop:'1px solid #cbd5e1', display:'flex', justifyContent:'space-between', alignItems:'center', zIndex:3000, boxShadow:'0 -2px 10px rgba(0,0,0,0.1)'}}><strong style={{color:'#0f172a'}}>{animalesSeleccionados.length} seleccionados</strong><button onClick={iniciarMovimiento} style={btnAzul}>Elegir Destino <ArrowRightLeft size={18}/></button></div>)}
 
-              {/* MODALES */}
-              
-              {/* 🆕 MODAL NUEVO EVENTO REPRODUCTIVO */}
-              {showModalRepro && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalRepro(false)}>
-                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
-                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                              <h3 style={{margin:0, color:'#be185d'}}>Nuevo Evento Reproductivo 🧬</h3>
-                              <button onClick={()=>setShowModalRepro(false)} style={btnIcon}><X size={24} color="#0f172a"/></button>
-                          </div>
-                          <form onSubmit={guardarEventoRepro} style={formStyle}>
-                              <label style={labelStyle}>Fecha:</label>
-                              <input type="date" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, fecha:e.target.value})} style={inputStyle}/>
-                              
-                              <label style={labelStyle}>Tipo de Evento:</label>
-                              <select style={inputStyle} value={nuevoEventoRepro.tipo} onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, tipo:e.target.value})}>
-                                  <option value="INSEMINACION">Inseminación (IA)</option>
-                                  <option value="TACTO">Tacto / Diagnóstico</option>
-                                  <option value="PARTO">Parto</option>
-                              </select>
-
-                              {nuevoEventoRepro.tipo === 'INSEMINACION' && (
-                                  <>
-                                    <label style={labelStyle}>Detalle (Toro/Pajuela):</label>
-                                    <input placeholder="Ej: Toro Campeón 001" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})} style={inputStyle} required/>
-                                  </>
-                              )}
-
-                              {nuevoEventoRepro.tipo === 'TACTO' && (
-                                  <>
-                                    <label style={labelStyle}>Resultado:</label>
-                                    <select style={inputStyle} onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})}>
-                                        <option value="POSITIVO">Positivo (Preñada)</option>
-                                        <option value="NEGATIVO">Negativo (Vacía)</option>
-                                    </select>
-                                  </>
-                              )}
-
-                              {nuevoEventoRepro.tipo === 'PARTO' && (
-                                  <>
-                                    <label style={labelStyle}>Detalle Cría:</label>
-                                    <input placeholder="Ej: Macho 35kg" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})} style={inputStyle} required/>
-                                  </>
-                              )}
-
-                              <button style={{...btnAzul, background:'#be185d'}}>Registrar Evento</button>
-                          </form>
-                      </div>
-                  </div>
-              )}
-
-              {/* MODAL DETALLE ANIMAL (CON SECCIÓN REPRO) */}
+              {/* MODAL DETALLE ANIMAL */}
               {showModalDetalleAnimal && (
                   <div style={modalBackdrop} onClick={()=>setShowModalDetalleAnimal(false)}>
                       <div style={{...modalContent, maxWidth:'600px'}} onClick={e=>e.stopPropagation()}>
                           {datosDetalleAnimal ? (
                               <>
-                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                                    <h2 style={{margin:0, color:'#0f172a'}}>Historia: {datosDetalleAnimal?.caravana}</h2>
+                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
+                                    <h2 style={{margin:0, color:'#0f172a'}}>RP: {datosDetalleAnimal?.caravana}</h2>
                                     <button onClick={()=>setShowModalDetalleAnimal(false)} style={{background:'transparent', border:'none', cursor:'pointer'}}><X size={28} color="#0f172a"/></button>
                                 </div>
+                                {/* 🆕 AQUI MOSTRAMOS LA CATEGORÍA EN EL MODAL */}
+                                <div style={{color:'#64748b', marginBottom:'20px', fontWeight:'bold', fontSize:'1.1rem'}}>{datosDetalleAnimal.categoria || 'Sin Categoría'}</div>
+
                                 <div style={{marginBottom:'20px', display:'flex', gap:'10px'}}>
                                     <button onClick={iniciarVenta} style={{...btnOutline, borderColor:'#16a34a', color:'#16a34a', background:'#f0fdf4'}}><Banknote size={20}/> Vender</button>
-                                    {/* 🆕 BOTÓN NUEVO EVENTO REPRO */}
                                     <button onClick={iniciarEventoRepro} style={{...btnOutline, borderColor:'#be185d', color:'#be185d', background:'#fdf2f8'}}><Dna size={20}/> Reproducción</button>
                                 </div>
                                 
@@ -487,7 +426,6 @@ function App() {
                                     <ResponsiveContainer><LineChart data={datosDetalleAnimal.historial_pesos}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="fecha" /><YAxis /><Tooltip /><Line type="monotone" dataKey="kilos" stroke="#16a34a" strokeWidth={3} activeDot={{ r: 8 }} /></LineChart></ResponsiveContainer>
                                 </div>
 
-                                {/* 🆕 SECCIÓN HISTORIAL REPRODUCTIVO */}
                                 <div style={{marginBottom:'20px'}}>
                                     <h4 style={{margin:'0 0 10px 0', color:'#be185d'}}>Ciclo Reproductivo 🧬</h4>
                                     <div style={{maxHeight:'100px', overflowY:'auto', border:'1px solid #fbcfe8', borderRadius:'8px', background:'#fff1f2'}}>
@@ -521,40 +459,17 @@ function App() {
                   </div>
               )}
 
-              {/* MODAL ANIMAL (CON TORO) */}
-              {showModalAnimal && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalAnimal(false)}>
-                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
-                          <div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Alta Animal</h3><button onClick={()=>setShowModalAnimal(false)} style={btnIcon}><X color="#000"/></button></div>
-                          <form onSubmit={guardarAnimal} style={formStyle}>
-                              <label style={labelStyle}>Fecha Ingreso:</label><input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/>
-                              <label style={labelStyle}>Caravana:</label><input placeholder="Ej: A-001" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/>
-                              <label style={labelStyle}>Raza:</label><select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option><option>Hereford</option></select>
-                              <label style={labelStyle}>Categoría:</label>
-                              <select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}>
-                                  <option>Ternero</option>
-                                  <option>Novillo</option>
-                                  <option>Vaca</option>
-                                  <option>Vaquillona</option>
-                                  <option>Toro</option> {/* 🆕 TORO AGREGADO */}
-                              </select>
-                              <label style={labelStyle}>Peso Inicial:</label><input placeholder="Kilos" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/>
-                              <button style={btnAzul}>Guardar</button>
-                          </form>
-                      </div>
-                  </div>
-              )}
-
-              {/* RESTO DE MODALES IGUALES */}
-              {showModalNuevoSilo && (<div style={modalBackdrop} onClick={()=>setShowModalNuevoSilo(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><h3 style={{color:'#f97316'}}>Nuevo Silo / Acopio</h3><form onSubmit={guardarSilo} style={formStyle}><label style={labelStyle}>Nombre:</label><input placeholder="Ej: Silobolsa Soja 2024" value={nuevoSilo.nombre} onChange={e=>setNuevoSilo({...nuevoSilo, nombre:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Tipo:</label><select style={inputStyle} value={nuevoSilo.tipo} onChange={e=>setNuevoSilo({...nuevoSilo, tipo:e.target.value})}><option>SILOBOLSA</option><option>CELDA</option><option>SILO FIJO</option></select><label style={labelStyle}>Contenido (Grano):</label><select style={inputStyle} value={nuevoSilo.contenido} onChange={e=>setNuevoSilo({...nuevoSilo, contenido:e.target.value})}><option>SOJA</option><option>MAIZ</option><option>GIRASOL</option><option>TRIGO</option><option>SORGO</option></select><label style={labelStyle}>Capacidad Max (Tn):</label><input type="number" placeholder="Ej: 200" value={nuevoSilo.capacidad} onChange={e=>setNuevoSilo({...nuevoSilo, capacidad:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoSilo.lat ? 'GPS Detectado' : 'Usar GPS'}</button><button style={{...btnAzul, background:'#f97316'}}>Crear Silo</button></form></div></div>)}
-              {showModalCosecha && (<div style={modalBackdrop} onClick={()=>setShowModalCosecha(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Cargar Camión 🚛</h3><button onClick={()=>setShowModalCosecha(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarCosecha} style={formStyle}><label style={labelStyle}>Kilos Netos:</label><input type="number" placeholder="Kg" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><label style={labelStyle}>Destino de la Carga:</label><div style={{display:'flex', gap:'10px'}}><button type="button" onClick={()=>setNuevaCosecha({...nuevaCosecha, destino:'VENTA'})} style={{...btnOutline, background: nuevaCosecha.destino === 'VENTA' ? '#dbeafe' : 'white', borderColor: nuevaCosecha.destino === 'VENTA' ? '#2563eb' : '#cbd5e1'}}>💰 Venta Directa</button><button type="button" onClick={()=>setNuevaCosecha({...nuevaCosecha, destino:'SILO'})} style={{...btnOutline, background: nuevaCosecha.destino === 'SILO' ? '#ffedd5' : 'white', borderColor: nuevaCosecha.destino === 'SILO' ? '#f97316' : '#cbd5e1'}}>🏭 Acopio / Silo</button></div>{nuevaCosecha.destino === 'SILO' && (<div style={{marginTop:'10px'}}><label style={labelStyle}>Seleccionar Silo:</label><select style={inputStyle} onChange={e=>setNuevaCosecha({...nuevaCosecha, silo_id:e.target.value})} required><option value="">-- Elegir Silo --</option>{silos.map(s => (<option key={s.id} value={s.id}>{s.nombre} ({s.contenido})</option>))}</select></div>)}<button style={btnAzul}>Registrar Carga</button></form></div></div>)}
-              {showModalVentaGrano && (<div style={modalBackdrop} onClick={()=>setShowModalVentaGrano(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#16a34a'}}>Vender Stock 💰</h3><button onClick={()=>setShowModalVentaGrano(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={confirmarVentaGrano} style={formStyle}><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.9rem', color:'#166534', border:'1px solid #bbf7d0', marginBottom:'10px'}}>Vendiendo {ventaGrano.tipo_grano} desde Silo.</div><label style={labelStyle}>Comprador:</label><input placeholder="Ej: AFA" value={ventaGrano.comprador} onChange={e=>setVentaGrano({...ventaGrano, comprador:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Kilos a Vender:</label><input type="number" placeholder="Kg" value={ventaGrano.kilos} onChange={e=>setVentaGrano({...ventaGrano, kilos:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Precio Total ($):</label><input type="number" placeholder="$" value={ventaGrano.precio_total} onChange={e=>setVentaGrano({...ventaGrano, precio_total:e.target.value})} style={inputStyle} required/><button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button></form></div></div>)}
+              {/* RESTO DE MODALES */}
               {showModalLluvia && (<div style={modalBackdrop} onClick={()=>setShowModalLluvia(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#2563eb'}}>Registrar Lluvia 🌧️</h3><button onClick={()=>setShowModalLluvia(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={guardarLluvia} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={nuevoRegistroLluvia.fecha} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Lote / Campo:</label><select style={inputStyle} value={nuevoRegistroLluvia.lote_id} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, lote_id:e.target.value})} required><option value="">-- Seleccionar --</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Milímetros (mm):</label><input type="number" placeholder="Ej: 45" value={nuevoRegistroLluvia.milimetros} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, milimetros:e.target.value})} style={inputStyle} required/><button style={{...btnAzul, background:'#2563eb'}}>Guardar Lluvia</button></form></div></div>)}
               {showModalSanidad && (<div style={modalBackdrop} onClick={()=>setShowModalSanidad(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Campaña Sanitaria 💉</h3><button onClick={()=>setShowModalSanidad(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarSanidad} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={datosSanidad.fecha} onChange={e=>setDatosSanidad({...datosSanidad, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Concepto / Tratamiento:</label><input placeholder="Ej: Vacuna Aftosa" value={datosSanidad.concepto} onChange={e=>setDatosSanidad({...datosSanidad, concepto:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Aplicar a:</label><select style={inputStyle} value={datosSanidad.lote_id} onChange={e=>setDatosSanidad({...datosSanidad, lote_id:e.target.value})}><option value="all">Todo el Rodeo</option><option value="corral">Solo en Corral / Sin Lote</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Costo TOTAL de la Campaña ($):</label><input type="number" placeholder="$ Total Gastado" value={datosSanidad.monto} onChange={e=>setDatosSanidad({...datosSanidad, monto:e.target.value})} style={inputStyle} required/><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.</div><button style={{...btnAzul, background:'#16a34a'}}>Aplicar Gasto Masivo</button></form></div></div>)}
               {showModalVenta && (<div style={modalBackdrop} onClick={()=>setShowModalVenta(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Registrar Venta 💰</h3><button onClick={()=>setShowModalVenta(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarVenta} style={formStyle}><label style={labelStyle}>Fecha de Venta:</label><input type="date" value={datosVenta.fecha} onChange={e=>setDatosVenta({...datosVenta, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Comprador / Destino:</label><input placeholder="Ej: Frigorífico Norte" value={datosVenta.comprador} onChange={e=>setDatosVenta({...datosVenta, comprador:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Kilos Totales de Venta:</label><input type="number" placeholder="Kg" value={datosVenta.kilos} onChange={e=>setDatosVenta({...datosVenta, kilos:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Precio por Kg ($):</label><input type="number" placeholder="$" value={datosVenta.precio} onChange={e=>setDatosVenta({...datosVenta, precio:e.target.value})} style={inputStyle} required/><div style={{textAlign:'right', marginTop:'5px', fontWeight:'bold', color:'#16a34a'}}>Total Operación: $ {totalEstimado}</div><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0', marginTop:'10px'}}>ℹ️ Se calculará el total automáticamente y el animal saldrá del stock.</div><button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button></form></div></div>)}
               {showModalMover && (<div style={modalBackdrop} onClick={()=>setShowModalMover(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#0f172a'}}>Rotar Hacienda</h3><button onClick={()=>setShowModalMover(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><p style={{color:'#334155'}}>Vas a mover <strong>{animalesSeleccionados.length} animales</strong>.</p><label style={labelStyle}>Selecciona Lote Destino:</label><select style={inputStyle} value={loteDestino} onChange={e=>setLoteDestino(e.target.value)}><option value="">-- A Corral / Sin Lote --</option>{lotes.map(l => (<option key={l.id} value={l.lote_id}>{l.lote}</option>))}</select><div style={{marginTop:'10px', textAlign:'right'}}><button onClick={irACrearLote} style={{background:'transparent', border:'none', color:'#2563eb', textDecoration:'underline', cursor:'pointer', fontSize:'0.9rem'}}>+ Crear Nuevo Lote/Corral</button></div><div style={{display:'flex', gap:'10px', marginTop:'20px'}}><button onClick={confirmarMovimiento} style={{...btnAzul, flex:1}}>Confirmar Movimiento</button><button onClick={()=>setShowModalMover(false)} style={btnGris}>Cancelar</button></div></div></div>)}
               {showModalLote && (<div style={modalBackdrop} onClick={()=>setShowModalLote(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3><button onClick={()=>setShowModalLote(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarContrato} style={formStyle}><label style={labelStyle}>Nombre del Lote:</label><input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Hectáreas:</label><input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS OK' : 'Usar GPS'}</button><label style={labelStyle}>Dueño:</label><input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/><div style={{display:'flex', gap:'10px'}}><select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select><input placeholder="%" type="number" value={nuevoContrato.porcentaje} onChange={e=>setNuevoContrato({...nuevoContrato, porcentaje:e.target.value})} style={{...inputStyle, width:'80px'}}/></div><button style={btnAzul}>{modoEdicion ? 'Guardar' : 'Crear'}</button><button type="button" onClick={()=>setShowModalLote(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-              {showModalCosecha && (<div style={modalBackdrop} onClick={()=>setShowModalCosecha(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Cargar Camión</h3><button onClick={()=>setShowModalCosecha(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarCosecha} style={formStyle}><label style={labelStyle}>Kilos:</label><input type="number" placeholder="Kilos" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalCosecha(false)} style={btnGris}>Cancelar</button></form></div></div>)}
+              {showModalAnimal && (<div style={modalBackdrop} onClick={()=>setShowModalAnimal(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Alta Animal</h3><button onClick={()=>setShowModalAnimal(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarAnimal} style={formStyle}><label style={labelStyle}>Fecha Ingreso:</label><input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Caravana:</label><input placeholder="Ej: A-001" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Raza:</label><select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option><option>Hereford</option></select><label style={labelStyle}>Categoría:</label><select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option><option>Vaquillona</option><option>Toro</option></select><label style={labelStyle}>Peso Inicial:</label><input placeholder="Kilos" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/><button style={btnAzul}>Guardar</button></form></div></div>)}
+              {showModalCosecha && (<div style={modalBackdrop} onClick={()=>setShowModalCosecha(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Cargar Camión 🚛</h3><button onClick={()=>setShowModalCosecha(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarCosecha} style={formStyle}><label style={labelStyle}>Kilos Netos:</label><input type="number" placeholder="Kg" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><label style={labelStyle}>Destino de la Carga:</label><div style={{display:'flex', gap:'10px'}}><button type="button" onClick={()=>setNuevaCosecha({...nuevaCosecha, destino:'VENTA'})} style={{...btnOutline, background: nuevaCosecha.destino === 'VENTA' ? '#dbeafe' : 'white', borderColor: nuevaCosecha.destino === 'VENTA' ? '#2563eb' : '#cbd5e1'}}>💰 Venta Directa</button><button type="button" onClick={()=>setNuevaCosecha({...nuevaCosecha, destino:'SILO'})} style={{...btnOutline, background: nuevaCosecha.destino === 'SILO' ? '#ffedd5' : 'white', borderColor: nuevaCosecha.destino === 'SILO' ? '#f97316' : '#cbd5e1'}}>🏭 Acopio / Silo</button></div>{nuevaCosecha.destino === 'SILO' && (<div style={{marginTop:'10px'}}><label style={labelStyle}>Seleccionar Silo:</label><select style={inputStyle} onChange={e=>setNuevaCosecha({...nuevaCosecha, silo_id:e.target.value})} required><option value="">-- Elegir Silo --</option>{silos.map(s => (<option key={s.id} value={s.id}>{s.nombre} ({s.contenido})</option>))}</select></div>)}<button style={btnAzul}>Registrar Carga</button></form></div></div>)}
+              {showModalVentaGrano && (<div style={modalBackdrop} onClick={()=>setShowModalVentaGrano(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#16a34a'}}>Vender Stock 💰</h3><button onClick={()=>setShowModalVentaGrano(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={confirmarVentaGrano} style={formStyle}><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.9rem', color:'#166534', border:'1px solid #bbf7d0', marginBottom:'10px'}}>Vendiendo {ventaGrano.tipo_grano} desde Silo.</div><label style={labelStyle}>Comprador:</label><input placeholder="Ej: AFA" value={ventaGrano.comprador} onChange={e=>setVentaGrano({...ventaGrano, comprador:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Kilos a Vender:</label><input type="number" placeholder="Kg" value={ventaGrano.kilos} onChange={e=>setVentaGrano({...ventaGrano, kilos:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Precio Total ($):</label><input type="number" placeholder="$" value={ventaGrano.precio_total} onChange={e=>setVentaGrano({...ventaGrano, precio_total:e.target.value})} style={inputStyle} required/><button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button></form></div></div>)}
+              {showModalNuevoSilo && (<div style={modalBackdrop} onClick={()=>setShowModalNuevoSilo(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><h3 style={{color:'#f97316'}}>Nuevo Silo / Acopio</h3><form onSubmit={guardarSilo} style={formStyle}><label style={labelStyle}>Nombre:</label><input placeholder="Ej: Silobolsa Soja 2024" value={nuevoSilo.nombre} onChange={e=>setNuevoSilo({...nuevoSilo, nombre:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Tipo:</label><select style={inputStyle} value={nuevoSilo.tipo} onChange={e=>setNuevoSilo({...nuevoSilo, tipo:e.target.value})}><option>SILOBOLSA</option><option>CELDA</option><option>SILO FIJO</option></select><label style={labelStyle}>Contenido (Grano):</label><select style={inputStyle} value={nuevoSilo.contenido} onChange={e=>setNuevoSilo({...nuevoSilo, contenido:e.target.value})}><option>SOJA</option><option>MAIZ</option><option>GIRASOL</option><option>TRIGO</option><option>SORGO</option></select><label style={labelStyle}>Capacidad Max (Tn):</label><input type="number" placeholder="Ej: 200" value={nuevoSilo.capacidad} onChange={e=>setNuevoSilo({...nuevoSilo, capacidad:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoSilo.lat ? 'GPS Detectado' : 'Usar GPS'}</button><button style={{...btnAzul, background:'#f97316'}}>Crear Silo</button></form></div></div>)}
+              {showModalRepro && (<div style={modalBackdrop} onClick={()=>setShowModalRepro(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#be185d'}}>Nuevo Evento Reproductivo 🧬</h3><button onClick={()=>setShowModalRepro(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={guardarEventoRepro} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Tipo de Evento:</label><select style={inputStyle} value={nuevoEventoRepro.tipo} onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, tipo:e.target.value})}><option value="INSEMINACION">Inseminación (IA)</option><option value="TACTO">Tacto / Diagnóstico</option><option value="PARTO">Parto</option></select>{nuevoEventoRepro.tipo === 'INSEMINACION' && (<><label style={labelStyle}>Detalle (Toro/Pajuela):</label><input placeholder="Ej: Toro Campeón 001" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})} style={inputStyle} required/></>)}{nuevoEventoRepro.tipo === 'TACTO' && (<><label style={labelStyle}>Resultado:</label><select style={inputStyle} onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})}><option value="POSITIVO">Positivo (Preñada)</option><option value="NEGATIVO">Negativo (Vacía)</option></select></>)}{nuevoEventoRepro.tipo === 'PARTO' && (<><label style={labelStyle}>Detalle Cría:</label><input placeholder="Ej: Macho 35kg" onChange={e=>setNuevoEventoRepro({...nuevoEventoRepro, detalle:e.target.value})} style={inputStyle} required/></>)}<button style={{...btnAzul, background:'#be185d'}}>Registrar Evento</button></form></div></div>)}
               {showModalPesaje && (<div style={modalBackdrop} onClick={()=>setShowModalPesaje(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Nuevo Pesaje</h3><button onClick={()=>setShowModalPesaje(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarPesaje} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" onChange={e=>setNuevoPesaje({...nuevoPesaje, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Kilos:</label><input type="number" placeholder="Kilos" onChange={e=>setNuevoPesaje({...nuevoPesaje, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalPesaje(false)} style={btnGris}>Cancelar</button></form></div></div>)}
               {showModalGasto && (<div style={modalBackdrop} onClick={()=>setShowModalGasto(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#dc2626'}}>💸 Nuevo Gasto</h3><button onClick={()=>setShowModalGasto(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarGasto} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" onChange={e=>setNuevoGasto({...nuevoGasto, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Concepto:</label><input placeholder="Ej: Semillas" onChange={e=>setNuevoGasto({...nuevoGasto, concepto:e.target.value})} style={inputStyle} autoFocus required/><label style={labelStyle}>Monto:</label><input type="number" placeholder="$" onChange={e=>setNuevoGasto({...nuevoGasto, monto:e.target.value})} style={inputStyle} required/><select onChange={e=>setNuevoGasto({...nuevoGasto, categoria:e.target.value})} style={inputStyle}><option value="INSUMO">Insumo</option><option value="LABOR">Labor</option><option value="SANITARIO">Sanitario</option></select><button style={{...btnAzul, background:'#dc2626'}}>Registrar Gasto</button><button type="button" onClick={()=>setShowModalGasto(false)} style={btnGris}>Cancelar</button></form></div></div>)}
               
