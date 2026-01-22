@@ -34,7 +34,7 @@ function App() {
   const [showModalMover, setShowModalMover] = useState(false); 
   const [showModalVenta, setShowModalVenta] = useState(false); 
   const [showModalSanidad, setShowModalSanidad] = useState(false); 
-  const [showModalLluvia, setShowModalLluvia] = useState(false); // 🆕 MODAL LLUVIA
+  const [showModalLluvia, setShowModalLluvia] = useState(false);
   
   const [modoEdicion, setModoEdicion] = useState(null); 
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -51,7 +51,7 @@ function App() {
   const [datosDetalleAnimal, setDatosDetalleAnimal] = useState(null);
   const [datosVenta, setDatosVenta] = useState({ animal_id: null, fecha: '', comprador: '', kilos: '', precio: '' });
   const [datosSanidad, setDatosSanidad] = useState({ lote_id: 'all', concepto: '', monto: '', fecha: '' });
-  const [nuevoRegistroLluvia, setNuevoRegistroLluvia] = useState({ lote_id: '', milimetros: '', fecha: '' }); // 🆕 DATOS LLUVIA
+  const [nuevoRegistroLluvia, setNuevoRegistroLluvia] = useState({ lote_id: '', milimetros: '', fecha: '' });
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -141,7 +141,6 @@ function App() {
       }).catch(err => alert(err.response?.data?.error || "Error al aplicar gasto"));
   };
 
-  // 🆕 CONFIRMAR LLUVIA
   const guardarLluvia = (e) => {
       e.preventDefault();
       axios.post(`${API_URL}/registrar_lluvia`, nuevoRegistroLluvia).then(() => {
@@ -198,7 +197,6 @@ function App() {
              <button onClick={() => cambiarSeccion('AGRICULTURA')} style={{...btnMenu, background: seccion === 'AGRICULTURA' ? '#1e293b' : 'transparent'}}><Sprout size={20}/> Agricultura</button>
              <button onClick={() => cambiarSeccion('GANADERIA')} style={{...btnMenu, background: seccion === 'GANADERIA' ? '#1e293b' : 'transparent'}}><Tractor size={20}/> Ganadería</button>
              
-             {/* 🆕 BOTÓN DE LLUVIA */}
              <button onClick={() => setShowModalLluvia(true)} style={{...btnMenu, color:'#93c5fd'}}>
                 <CloudLightning size={20}/> Registrar Lluvia
              </button>
@@ -234,7 +232,6 @@ function App() {
                                         <div style={{textAlign:'center'}}>
                                             <strong style={{fontSize:'1rem'}}>{lote.lote}</strong><br/>
                                             {lote.hectareas} Has<br/>
-                                            {/* 🆕 MOSTRAR LLUVIA EN EL POPUP */}
                                             <span style={{color:'#2563eb', fontWeight:'bold', display:'block', marginTop:'5px'}}>🌧️ {lote.lluvia_mes} mm (Mes)</span>
                                         </div>
                                     </Popup> 
@@ -267,7 +264,15 @@ function App() {
                                 return (
                                     <div key={item.id} style={cardEstilo} onClick={() => cargarClima(item.lat, item.lng, item.lote)}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}> <div><h3 style={{margin:0, color:'#0f172a', fontWeight:'bold', fontSize:'1.2rem'}}>{item.lote}</h3><span style={tagEstilo}>{item.tipo} {item.porcentaje}%</span></div> <div style={{display:'flex', gap:'5px'}}> <button onClick={(e) => {e.stopPropagation(); abrirEditarLote(item)}} style={{...btnIcon, color:'#3b82f6'}}><Edit size={18}/></button> <button onClick={(e) => {e.stopPropagation(); eliminarLote(item.lote_id)}} style={{...btnIcon, color:'#ef4444'}}><Trash2 size={18}/></button> </div> </div>
-                                        <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', margin:'10px 0', border:'1px solid #bbf7d0'}}> <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem'}}><span style={{color:'#166534'}}>🌱 Cosecha:</span><strong>{item.total_cosechado.toLocaleString()} kg</strong></div> <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', marginTop:'5px', color:'#dc2626'}}><span>💸 Gastos:</span><strong>$ {item.total_gastos?.toLocaleString()}</strong></div> </div>
+                                        <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', margin:'10px 0', border:'1px solid #bbf7d0'}}> 
+                                            {/* 🆕 AQUI ESTÁ LA LLUVIA AGREGADA EN AGRICULTURA */}
+                                            <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', marginBottom:'5px', color:'#2563eb'}}>
+                                                <span>🌧️ Lluvia (Mes):</span>
+                                                <strong>{item.lluvia_mes || 0} mm</strong>
+                                            </div>
+                                            <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem'}}><span style={{color:'#166534'}}>🌱 Cosecha:</span><strong>{item.total_cosechado.toLocaleString()} kg</strong></div> 
+                                            <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', marginTop:'5px', color:'#dc2626'}}><span>💸 Gastos:</span><strong>$ {item.total_gastos?.toLocaleString()}</strong></div> 
+                                        </div>
                                         <div style={{ height: '150px', width:'100%' }}> {item.total_cosechado > 0 ? ( <ResponsiveContainer><PieChart><Pie data={[{ name: 'Tú', value: miParte }, { name: 'Otro', value: parteOtro }]} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value"><Cell fill={COLORES_AGRO[0]} /><Cell fill={COLORES_AGRO[1]} /></Pie><Tooltip formatter={(val) => `${val.toLocaleString()} kg`} /></PieChart></ResponsiveContainer> ) : <div style={sinDatos}>Sin Cosecha</div>} </div>
                                         <div style={{display:'flex', gap:'10px'}}> <button onClick={(e) => {e.stopPropagation(); setNuevaCosecha({lote_id:item.lote_id, kilos:''}); setShowModalCosecha(true)}} style={btnOutline}><Truck size={16}/> Cosecha</button> <button onClick={(e) => {e.stopPropagation(); abrirGasto('LOTE', item)}} style={{...btnOutline, borderColor:'#dc2626', color:'#dc2626'}}><DollarSign size={16}/> Gasto</button> </div>
                                     </div>
@@ -314,63 +319,8 @@ function App() {
               )}
 
               {/* MODALES */}
-              
-              {/* 🆕 MODAL LLUVIA */}
-              {showModalLluvia && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalLluvia(false)}>
-                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
-                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                              <h3 style={{margin:0, color:'#2563eb'}}>Registrar Lluvia 🌧️</h3>
-                              <button onClick={()=>setShowModalLluvia(false)} style={btnIcon}><X size={24} color="#0f172a"/></button>
-                          </div>
-                          <form onSubmit={guardarLluvia} style={formStyle}>
-                              <label style={labelStyle}>Fecha:</label>
-                              <input type="date" value={nuevoRegistroLluvia.fecha} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, fecha:e.target.value})} style={inputStyle}/>
-                              
-                              <label style={labelStyle}>Lote / Campo:</label>
-                              <select style={inputStyle} value={nuevoRegistroLluvia.lote_id} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, lote_id:e.target.value})} required>
-                                  <option value="">-- Seleccionar --</option>
-                                  {lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}
-                              </select>
-
-                              <label style={labelStyle}>Milímetros (mm):</label>
-                              <input type="number" placeholder="Ej: 45" value={nuevoRegistroLluvia.milimetros} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, milimetros:e.target.value})} style={inputStyle} required/>
-                              
-                              <button style={{...btnAzul, background:'#2563eb'}}>Guardar Lluvia</button>
-                          </form>
-                      </div>
-                  </div>
-              )}
-
-              {/* MODAL SANIDAD MASIVA */}
-              {showModalSanidad && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalSanidad(false)}>
-                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
-                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                              <h3 style={{margin:0, color:'#16a34a'}}>Campaña Sanitaria 💉</h3>
-                              <button onClick={()=>setShowModalSanidad(false)} style={btnIcon}><X size={24} color="#0f172a"/></button>
-                          </div>
-                          <form onSubmit={confirmarSanidad} style={formStyle}>
-                              <label style={labelStyle}>Fecha:</label>
-                              <input type="date" value={datosSanidad.fecha} onChange={e=>setDatosSanidad({...datosSanidad, fecha:e.target.value})} style={inputStyle}/>
-                              <label style={labelStyle}>Concepto / Tratamiento:</label>
-                              <input placeholder="Ej: Vacuna Aftosa" value={datosSanidad.concepto} onChange={e=>setDatosSanidad({...datosSanidad, concepto:e.target.value})} style={inputStyle} required/>
-                              <label style={labelStyle}>Aplicar a:</label>
-                              <select style={inputStyle} value={datosSanidad.lote_id} onChange={e=>setDatosSanidad({...datosSanidad, lote_id:e.target.value})}>
-                                  <option value="all">Todo el Rodeo</option>
-                                  <option value="corral">Solo en Corral / Sin Lote</option>
-                                  {lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}
-                              </select>
-                              <label style={labelStyle}>Costo TOTAL de la Campaña ($):</label>
-                              <input type="number" placeholder="$ Total Gastado" value={datosSanidad.monto} onChange={e=>setDatosSanidad({...datosSanidad, monto:e.target.value})} style={inputStyle} required/>
-                              <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.</div>
-                              <button style={{...btnAzul, background:'#16a34a'}}>Aplicar Gasto Masivo</button>
-                          </form>
-                      </div>
-                  </div>
-              )}
-
-              {/* RESTO DE MODALES IGUALES */}
+              {showModalLluvia && (<div style={modalBackdrop} onClick={()=>setShowModalLluvia(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#2563eb'}}>Registrar Lluvia 🌧️</h3><button onClick={()=>setShowModalLluvia(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={guardarLluvia} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={nuevoRegistroLluvia.fecha} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Lote / Campo:</label><select style={inputStyle} value={nuevoRegistroLluvia.lote_id} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, lote_id:e.target.value})} required><option value="">-- Seleccionar --</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Milímetros (mm):</label><input type="number" placeholder="Ej: 45" value={nuevoRegistroLluvia.milimetros} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, milimetros:e.target.value})} style={inputStyle} required/><button style={{...btnAzul, background:'#2563eb'}}>Guardar Lluvia</button></form></div></div>)}
+              {showModalSanidad && (<div style={modalBackdrop} onClick={()=>setShowModalSanidad(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Campaña Sanitaria 💉</h3><button onClick={()=>setShowModalSanidad(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarSanidad} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={datosSanidad.fecha} onChange={e=>setDatosSanidad({...datosSanidad, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Concepto / Tratamiento:</label><input placeholder="Ej: Vacuna Aftosa" value={datosSanidad.concepto} onChange={e=>setDatosSanidad({...datosSanidad, concepto:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Aplicar a:</label><select style={inputStyle} value={datosSanidad.lote_id} onChange={e=>setDatosSanidad({...datosSanidad, lote_id:e.target.value})}><option value="all">Todo el Rodeo</option><option value="corral">Solo en Corral / Sin Lote</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Costo TOTAL de la Campaña ($):</label><input type="number" placeholder="$ Total Gastado" value={datosSanidad.monto} onChange={e=>setDatosSanidad({...datosSanidad, monto:e.target.value})} style={inputStyle} required/><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.</div><button style={{...btnAzul, background:'#16a34a'}}>Aplicar Gasto Masivo</button></form></div></div>)}
               {showModalVenta && (<div style={modalBackdrop} onClick={()=>setShowModalVenta(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Registrar Venta 💰</h3><button onClick={()=>setShowModalVenta(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarVenta} style={formStyle}><label style={labelStyle}>Fecha de Venta:</label><input type="date" value={datosVenta.fecha} onChange={e=>setDatosVenta({...datosVenta, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Comprador / Destino:</label><input placeholder="Ej: Frigorífico Norte" value={datosVenta.comprador} onChange={e=>setDatosVenta({...datosVenta, comprador:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Kilos Totales de Venta:</label><input type="number" placeholder="Kg" value={datosVenta.kilos} onChange={e=>setDatosVenta({...datosVenta, kilos:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Precio por Kg ($):</label><input type="number" placeholder="$" value={datosVenta.precio} onChange={e=>setDatosVenta({...datosVenta, precio:e.target.value})} style={inputStyle} required/><div style={{textAlign:'right', marginTop:'5px', fontWeight:'bold', color:'#16a34a'}}>Total Operación: $ {totalEstimado}</div><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0', marginTop:'10px'}}>ℹ️ Se calculará el total automáticamente y el animal saldrá del stock.</div><button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button></form></div></div>)}
               {showModalMover && (<div style={modalBackdrop} onClick={()=>setShowModalMover(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#0f172a'}}>Rotar Hacienda</h3><button onClick={()=>setShowModalMover(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><p style={{color:'#334155'}}>Vas a mover <strong>{animalesSeleccionados.length} animales</strong>.</p><label style={labelStyle}>Selecciona Lote Destino:</label><select style={inputStyle} value={loteDestino} onChange={e=>setLoteDestino(e.target.value)}><option value="">-- A Corral / Sin Lote --</option>{lotes.map(l => (<option key={l.id} value={l.lote_id}>{l.lote}</option>))}</select><div style={{marginTop:'10px', textAlign:'right'}}><button onClick={irACrearLote} style={{background:'transparent', border:'none', color:'#2563eb', textDecoration:'underline', cursor:'pointer', fontSize:'0.9rem'}}>+ Crear Nuevo Lote/Corral</button></div><div style={{display:'flex', gap:'10px', marginTop:'20px'}}><button onClick={confirmarMovimiento} style={{...btnAzul, flex:1}}>Confirmar Movimiento</button><button onClick={()=>setShowModalMover(false)} style={btnGris}>Cancelar</button></div></div></div>)}
               {showModalDetalleAnimal && (<div style={modalBackdrop} onClick={()=>setShowModalDetalleAnimal(false)}><div style={{...modalContent, maxWidth:'600px'}} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}><h2 style={{margin:0, color:'#0f172a'}}>Historia: {datosDetalleAnimal?.caravana}</h2><button onClick={()=>setShowModalDetalleAnimal(false)} style={{background:'transparent', border:'none', cursor:'pointer'}}><X size={28} color="#0f172a"/></button></div><div style={{marginBottom:'20px'}}><button onClick={iniciarVenta} style={{...btnOutline, borderColor:'#16a34a', color:'#16a34a', background:'#f0fdf4'}}><Banknote size={20}/> 💲 Registrar Venta / Salida</button></div>{datosDetalleAnimal && (<><div style={{height:'300px', width:'100%', background:'#f8fafc', borderRadius:'10px', padding:'10px', marginBottom:'20px'}}><h4 style={{margin:'0 0 10px 0', color:'#64748b'}}>Curva de Engorde</h4><ResponsiveContainer><LineChart data={datosDetalleAnimal.historial_pesos}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="fecha" /><YAxis /><Tooltip /><Line type="monotone" dataKey="kilos" stroke="#16a34a" strokeWidth={3} activeDot={{ r: 8 }} /></LineChart></ResponsiveContainer></div><div><h4 style={{margin:'0 0 10px 0', color:'#dc2626'}}>Historial de Gastos</h4><div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #e2e8f0', borderRadius:'8px'}}>{datosDetalleAnimal.historial_gastos.length > 0 ? (datosDetalleAnimal.historial_gastos.map((g, i) => (<div key={i} style={{display:'flex', justifyContent:'space-between', padding:'10px', borderBottom:'1px solid #f1f5f9', fontSize:'0.9rem', color:'#334155'}}><span>{g.fecha} - {g.concepto}</span><strong style={{color:'#dc2626'}}>$ {g.monto}</strong></div>))) : <div style={{padding:'10px', color:'#94a3b8', textAlign:'center'}}>Sin gastos registrados</div>}</div></div></>)}</div></div>)}
