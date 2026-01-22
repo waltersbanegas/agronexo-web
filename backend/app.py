@@ -10,7 +10,7 @@ import traceback
 app = Flask(__name__)
 CORS(app)
 
-# --- CONFIGURACIÓN DE BASE DE DATOS BLINDADA ---
+# --- CONFIGURACIÓN BASE DE DATOS ---
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///agronexo.db')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -100,9 +100,9 @@ def obtener_liquidaciones():
             })
         return jsonify(resultados)
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+# ⚠️ MODIFICADO: Ahora devuelve dónde está el animal (nombre del lote)
 @app.route('/api/animales', methods=['GET'])
 def obtener_animales():
     try:
@@ -113,6 +113,13 @@ def obtener_animales():
             gastos = Gasto.query.filter_by(animal_id=vaca.id).all()
             total_gastos = sum(g.monto for g in gastos)
             peso_act = 0; gdp = 0; ult = "Sin datos"
+            
+            # Ubicación actual
+            ubicacion = "En Corral / Sin Lote"
+            if vaca.lote_actual_id:
+                lote = Lote.query.get(vaca.lote_actual_id)
+                if lote: ubicacion = lote.nombre
+
             if pesajes:
                 peso_act = pesajes[0].kilos
                 ult = pesajes[0].fecha.strftime("%d/%m/%Y")
@@ -120,36 +127,51 @@ def obtener_animales():
                     dif_k = peso_act - pesajes[1].kilos
                     dif_d = (pesajes[0].fecha - pesajes[1].fecha).days
                     if dif_d > 0: gdp = dif_k / dif_d
-            lista.append({"id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza, "categoria": vaca.categoria, "peso_actual": peso_act, "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos})
+            
+            lista.append({
+                "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza,
+                "categoria": vaca.categoria, "peso_actual": peso_act,
+                "gdp": round(gdp, 3), "ultimo_pesaje": ult, 
+                "costo_acumulado": total_gastos,
+                "ubicacion": ubicacion,
+                "lote_actual_id": vaca.lote_actual_id
+            })
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# --- NUEVA RUTA: DETALLE HISTÓRICO DE UN ANIMAL ---
+# 🆕 NUEVA RUTA: MOVER HACIENDA (ROTACIÓN)
+@app.route('/api/mover_hacienda', methods=['POST'])
+def mover_hacienda():
+    try:
+        d = request.json
+        lote_destino = d.get('lote_destino_id') # Puede ser None si van a corral
+        ids_animales = d.get('animales_ids', [])
+        
+        for animal_id in ids_animales:
+            animal = Animal.query.get(animal_id)
+            if animal:
+                animal.lote_actual_id = lote_destino
+        
+        db.session.commit()
+        return jsonify({"mensaje": "Hacienda movida exitosamente"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/detalle_animal/<int:id>', methods=['GET'])
 def detalle_animal(id):
     try:
         animal = Animal.query.get(id)
         if not animal: return jsonify({"error": "No existe"}), 404
-        
-        # Historial de Pesos (Cronológico para el gráfico)
         pesajes = Peso.query.filter_by(animal_id=id).order_by(Peso.fecha.asc()).all()
         data_pesos = [{"fecha": p.fecha.strftime("%d/%m"), "kilos": p.kilos} for p in pesajes]
-        
-        # Historial de Gastos
         gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
         data_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
-        
-        return jsonify({
-            "caravana": animal.caravana,
-            "historial_pesos": data_pesos,
-            "historial_gastos": data_gastos
-        })
+        return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     try:
-        # 1. DATOS DE AGRICULTURA
         data_agro = []
         contratos = ContratoCampo.query.all()
         for c in contratos:
@@ -161,7 +183,6 @@ def exportar_excel():
             total_gastos = sum(g.monto for g in gastos)
             data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Tipo Contrato": c.tipo, "% Dueño": c.porcentaje_dueno, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos })
 
-        # 2. DATOS DE GANADERÍA
         data_ganaderia = []
         animales = Animal.query.all()
         for a in animales:
@@ -169,9 +190,13 @@ def exportar_excel():
             peso_actual = pesajes[0].kilos if pesajes else 0
             gastos_animal = Gasto.query.filter_by(animal_id=a.id).all()
             total_gastos_animal = sum(g.monto for g in gastos_animal)
-            data_ganaderia.append({ "Caravana": a.caravana, "Raza": a.raza, "Categoría": a.categoria, "Fecha Ingreso": a.fecha_ingreso.strftime('%d/%m/%Y'), "Peso Actual (kg)": peso_actual, "Costo Acumulado ($)": total_gastos_animal })
+            # Buscar nombre lote
+            ubic = "Corral"
+            if a.lote_actual_id:
+                l = Lote.query.get(a.lote_actual_id)
+                if l: ubic = l.nombre
+            data_ganaderia.append({ "Caravana": a.caravana, "Raza": a.raza, "Categoría": a.categoria, "Fecha Ingreso": a.fecha_ingreso.strftime('%d/%m/%Y'), "Ubicación": ubic, "Peso Actual (kg)": peso_actual, "Costo Acumulado ($)": total_gastos_animal })
 
-        # 3. GASTOS
         data_gastos = []
         todos_gastos = Gasto.query.all()
         for g in todos_gastos:
@@ -193,7 +218,7 @@ def exportar_excel():
         return send_file(output, download_name="Reporte_AgroNexo.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# --- RESTO DE RUTAS CRUD ---
+# --- RESTO DE RUTAS CRUD (Sin cambios mayores) ---
 @app.route('/api/nuevo_contrato', methods=['POST'])
 def crear_contrato():
     try:
