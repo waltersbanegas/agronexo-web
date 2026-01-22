@@ -138,7 +138,6 @@ def resumen_general():
         ventas_hacienda = Venta.query.filter(extract('month', Venta.fecha) == mes_actual, extract('year', Venta.fecha) == anio_actual).all()
         margen_hacienda = sum((v.precio_total - v.costo_historico) for v in ventas_hacienda)
         ventas_grano = db.session.query(func.sum(VentaGrano.precio_total)).filter(extract('month', VentaGrano.fecha) == mes_actual, extract('year', VentaGrano.fecha) == anio_actual).scalar() or 0
-        
         lotes = Lote.query.all()
         sumas_lotes = []
         for l in lotes:
@@ -215,19 +214,59 @@ def detalle_animal(id):
         data_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
         eventos_repro = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
         data_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos_repro]
-        
-        # 🆕 AGREGADO: Devuelve la categoría para mostrar en el frontend
-        return jsonify({ 
-            "caravana": animal.caravana, 
-            "categoria": animal.categoria, # <--- AQUI
-            "historial_pesos": data_pesos, 
-            "historial_gastos": data_gastos, 
-            "historial_repro": data_repro, 
-            "estado_reproductivo": getattr(animal, 'estado_reproductivo', 'VACIA') 
-        })
+        return jsonify({ "caravana": animal.caravana, "categoria": animal.categoria, "historial_pesos": data_pesos, "historial_gastos": data_gastos, "historial_repro": data_repro, "estado_reproductivo": getattr(animal, 'estado_reproductivo', 'VACIA') })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# RESTO DE RUTAS CRUD...
+@app.route('/api/nuevo_evento_reproductivo', methods=['POST'])
+def nuevo_evento_reproductivo():
+    try:
+        d = request.json
+        animal_id = d['animal_id']
+        tipo = d['tipo']
+        detalle = d['detalle']
+        fecha = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+        evento = EventoReproductivo(animal_id=animal_id, tipo=tipo, detalle=detalle, fecha=fecha)
+        db.session.add(evento)
+        animal = Animal.query.get(animal_id)
+        if tipo == 'INSEMINACION': animal.estado_reproductivo = 'INSEMINADA'
+        elif tipo == 'TACTO': animal.estado_reproductivo = 'PREÑADA' if detalle == 'POSITIVO' else 'VACIA'
+        elif tipo == 'PARTO': animal.estado_reproductivo = 'PARIDA'
+        db.session.commit()
+        return jsonify({"mensaje": "Evento registrado y estado actualizado"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# 🆕 NUEVA RUTA: EVENTO REPRODUCTIVO MASIVO (IATF)
+@app.route('/api/evento_reproductivo_masivo', methods=['POST'])
+def evento_reproductivo_masivo():
+    try:
+        d = request.json
+        ids_animales = d.get('animales_ids', [])
+        tipo = d['tipo']
+        detalle = d['detalle']
+        fecha = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+        
+        count = 0
+        for aid in ids_animales:
+            animal = Animal.query.get(aid)
+            if animal:
+                evento = EventoReproductivo(animal_id=animal.id, tipo=tipo, detalle=detalle, fecha=fecha)
+                db.session.add(evento)
+                if tipo == 'INSEMINACION': animal.estado_reproductivo = 'INSEMINADA'
+                elif tipo == 'TACTO': animal.estado_reproductivo = 'PREÑADA' if detalle == 'POSITIVO' else 'VACIA'
+                elif tipo == 'PARTO': animal.estado_reproductivo = 'PARIDA'
+                count += 1
+        
+        db.session.commit()
+        return jsonify({"mensaje": f"Evento aplicado a {count} animales"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# RESTO DE RUTAS IGUALES...
 @app.route('/api/silos', methods=['GET'])
 def obtener_silos():
     silos = Silo.query.all()
@@ -274,29 +313,6 @@ def venta_grano():
         return jsonify({"mensaje": "Venta de grano registrada"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/nuevo_evento_reproductivo', methods=['POST'])
-def nuevo_evento_reproductivo():
-    try:
-        d = request.json
-        animal_id = d['animal_id']
-        tipo = d['tipo']
-        detalle = d['detalle']
-        fecha = datetime.utcnow()
-        if d.get('fecha'):
-            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
-            except: pass
-        evento = EventoReproductivo(animal_id=animal_id, tipo=tipo, detalle=detalle, fecha=fecha)
-        db.session.add(evento)
-        animal = Animal.query.get(animal_id)
-        if tipo == 'INSEMINACION': animal.estado_reproductivo = 'INSEMINADA'
-        elif tipo == 'TACTO':
-            if detalle == 'POSITIVO': animal.estado_reproductivo = 'PREÑADA'
-            else: animal.estado_reproductivo = 'VACIA'
-        elif tipo == 'PARTO': animal.estado_reproductivo = 'PARIDA'
-        db.session.commit()
-        return jsonify({"mensaje": "Evento registrado y estado actualizado"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
 @app.route('/api/registrar_lluvia', methods=['POST'])
 def registrar_lluvia():
     try:
@@ -310,69 +326,27 @@ def registrar_lluvia():
         return jsonify({"mensaje": "Lluvia registrada correctamente"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/gasto_masivo', methods=['POST'])
-def gasto_masivo():
-    try:
-        d = request.json
-        lote_id = d.get('lote_id')
-        monto_total = float(d['monto'])
-        concepto = d['concepto']
-        fecha_gasto = datetime.utcnow()
-        if d.get('fecha'):
-            try: fecha_gasto = datetime.strptime(d['fecha'], '%Y-%m-%d')
-            except: pass
-        animales_destino = []
-        todos = Animal.query.all()
-        for a in todos:
-            if Venta.query.filter_by(animal_id=a.id).first(): continue
-            if lote_id == 'all': animales_destino.append(a)
-            elif lote_id == 'corral': 
-                if a.lote_actual_id is None: animales_destino.append(a)
-            else: 
-                if a.lote_actual_id == int(lote_id): animales_destino.append(a)
-        count = len(animales_destino)
-        if count == 0: return jsonify({"error": "No hay animales en ese destino"}), 400
-        monto_individual = monto_total / count
-        for a in animales_destino:
-            nuevo_gasto = Gasto(fecha=fecha_gasto, concepto=f"{concepto} (Campaña)", monto=monto_individual, categoria="SANITARIO", animal_id=a.id)
-            db.session.add(nuevo_gasto)
-        db.session.commit()
-        return jsonify({"mensaje": f"Aplicado a {count} animales. ${round(monto_individual, 2)} c/u"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
 @app.route('/api/registrar_venta', methods=['POST'])
 def registrar_venta():
-    try:
-        d = request.json
-        animal_id = d['animal_id']
-        fecha_venta = datetime.utcnow()
-        if d.get('fecha'):
-            try: fecha_venta = datetime.strptime(d['fecha'], '%Y-%m-%d')
-            except: pass
-        gastos = Gasto.query.filter_by(animal_id=animal_id).all()
-        total_costo = sum(g.monto for g in gastos)
-        precio_total_recibido = float(d['precio'])
-        nueva_venta = Venta(animal_id=animal_id, fecha=fecha_venta, comprador=d['comprador'], kilos_venta=float(d['kilos']), precio_total=precio_total_recibido, costo_historico=total_costo)
-        db.session.add(nueva_venta)
-        animal = Animal.query.get(animal_id)
-        animal.lote_actual_id = None
-        db.session.commit()
-        margen = precio_total_recibido - total_costo
-        return jsonify({"mensaje": "Venta exitosa", "margen": margen})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    d = request.json
+    gastos = Gasto.query.filter_by(animal_id=d['animal_id']).all()
+    total_costo = sum(g.monto for g in gastos)
+    nueva = Venta(animal_id=d['animal_id'], comprador=d['comprador'], kilos_venta=float(d['kilos']), precio_total=float(d['precio']), costo_historico=total_costo)
+    db.session.add(nueva)
+    animal = Animal.query.get(d['animal_id'])
+    animal.lote_actual_id = None
+    db.session.commit()
+    return jsonify({"mensaje": "Venta exitosa", "margen": float(d['precio']) - total_costo})
 
 @app.route('/api/mover_hacienda', methods=['POST'])
 def mover_hacienda():
-    try:
-        d = request.json
-        lote_destino = d.get('lote_destino_id')
-        ids_animales = d.get('animales_ids', [])
-        for animal_id in ids_animales:
-            animal = Animal.query.get(animal_id)
-            if animal: animal.lote_actual_id = lote_destino
-        db.session.commit()
-        return jsonify({"mensaje": "Hacienda movida exitosamente"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    d = request.json
+    ids = d.get('animales_ids', [])
+    for aid in ids:
+        a = Animal.query.get(aid)
+        if a: a.lote_actual_id = d.get('lote_destino_id')
+    db.session.commit()
+    return jsonify({"mensaje": "Movimiento OK"})
 
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
@@ -414,17 +388,14 @@ def exportar_excel():
         return send_file(output, download_name="Reporte_AgroNexo.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# --- CRUD BÁSICO ---
 @app.route('/api/nuevo_contrato', methods=['POST'])
 def crear_contrato():
     d = request.json
-    try:
-        nl = Lote(nombre=d['nombreLote'], hectareas=float(d['hectareas']), latitud=d.get('lat'), longitud=d.get('lng'))
-        db.session.add(nl); db.session.commit()
-        nc = ContratoCampo(lote_id=nl.id, propietario=d['propietario'], tipo=d['tipo'], porcentaje_dueno=float(d['porcentaje']))
-        db.session.add(nc); db.session.commit()
-        return jsonify({"mensaje": "Guardado"}), 201
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    nl = Lote(nombre=d['nombreLote'], hectareas=float(d['hectareas']), latitud=d.get('lat'), longitud=d.get('lng'))
+    db.session.add(nl); db.session.commit()
+    nc = ContratoCampo(lote_id=nl.id, propietario=d['propietario'], tipo=d['tipo'], porcentaje_dueno=float(d['porcentaje']))
+    db.session.add(nc); db.session.commit()
+    return jsonify({"mensaje": "Guardado"}), 201
 
 @app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
 def editar_lote(lote_id):
@@ -470,14 +441,8 @@ def nuevo_gasto():
     db.session.add(gasto); db.session.commit()
     return jsonify({"mensaje": "Gasto Guardado"}), 201
 
-# --- BLOQUE DE REPARACIÓN (Solo por si acaso) ---
 with app.app_context():
     db.create_all()
-    try:
-        with db.engine.connect() as conn:
-            conn.execute(text('ALTER TABLE animal ADD COLUMN IF NOT EXISTS estado_reproductivo VARCHAR(50) DEFAULT "VACIA";'))
-            conn.commit()
-    except: pass
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000, host='0.0.0.0')
