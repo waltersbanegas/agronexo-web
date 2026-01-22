@@ -102,7 +102,8 @@ function App() {
           <div style={{
               width: '250px', height: '100%', background: '#0f172a', color: 'white', display: 'flex', flexDirection: 'column', padding: '20px', gap: '10px',
               position: isMobile ? 'absolute' : 'relative', left: isMobile ? (menuAbierto ? 0 : '-100%') : 0, zIndex: 30, transition: 'left 0.3s ease',
-              boxShadow: isMobile ? '2px 0 10px rgba(0,0,0,0.5)' : 'none'
+              boxShadow: isMobile ? '2px 0 10px rgba(0,0,0,0.5)' : 'none',
+              overflowY: 'auto' // ⚠️ IMPORTANTE: Permite hacer scroll si el menú es muy largo
           }}>
              {!isMobile && <h2 style={{color:'#4ade80', marginBottom:'30px'}}>AgroNexo ☁️</h2>}
              <button onClick={() => cambiarSeccion('MAPA')} style={{...btnMenu, background: seccion === 'MAPA' ? '#1e293b' : 'transparent'}}><MapPin size={20}/> Mapa General</button>
@@ -115,8 +116,8 @@ function App() {
                 {clima ? ( <> <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><Thermometer size={18} color="#fcd34d"/> <span style={{fontSize:'1.1rem', fontWeight:'bold'}}>{clima.temp}°C</span></div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#94a3b8'}}><Wind size={16}/> {clima.wind} km/h</div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#60a5fa', marginTop:'5px'}}><CloudRain size={16}/> {clima.rain} mm</div> </> ) : <span style={{color:'#64748b', fontSize:'0.8rem'}}>Cargando...</span>}
             </div>
 
-            {/* ✅ AQUÍ ESTÁ EL BOTÓN DE MODO (RECUPERADO) */}
-            <div style={{marginTop: '10px', borderTop:'1px solid #334155', paddingTop:'20px'}}>
+            {/* ✅ LEVANTADO 80px DEL FONDO */}
+            <div style={{marginTop: '10px', borderTop:'1px solid #334155', paddingTop:'20px', marginBottom: '80px'}}>
                  <button onClick={() => setRol(rol === 'PRODUCTOR' ? 'PROPIETARIO' : 'PRODUCTOR')} style={{...btnMenu, fontSize:'0.8rem', background:'#334155'}}>
                     <RefreshCw size={14}/> Modo: {rol}
                  </button>
