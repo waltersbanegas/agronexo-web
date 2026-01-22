@@ -5,7 +5,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
-from sqlalchemy import extract # Necesario para filtrar por mes
+from sqlalchemy import extract, func
 import traceback
 
 app = Flask(__name__)
@@ -81,7 +81,6 @@ class Venta(db.Model):
     precio_total = db.Column(db.Float)
     costo_historico = db.Column(db.Float)
 
-# 🆕 NUEVA TABLA: LLUVIAS
 class Lluvia(db.Model):
     __tablename__ = 'lluvia'
     id = db.Column(db.Integer, primary_key=True)
@@ -91,16 +90,72 @@ class Lluvia(db.Model):
 
 # --- RUTAS ---
 
+# 🆕 RUTA PRINCIPAL: DASHBOARD GENERAL
+@app.route('/api/resumen_general', methods=['GET'])
+def resumen_general():
+    try:
+        hoy = datetime.utcnow()
+        mes_actual = hoy.month
+        anio_actual = hoy.year
+
+        # 1. Ganadería: Stock Vivo
+        # Filtramos animales que NO estén en la tabla ventas
+        subquery_vendidos = db.session.query(Venta.animal_id)
+        total_cabezas = db.session.query(Animal).filter(Animal.id.notin_(subquery_vendidos)).count()
+
+        # 2. Agricultura: Hectáreas Totales
+        total_hectareas = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
+
+        # 3. Finanzas del Mes (Gastos vs Margen Ventas)
+        gastos_mes = db.session.query(func.sum(Gasto.monto)).filter(
+            extract('month', Gasto.fecha) == mes_actual,
+            extract('year', Gasto.fecha) == anio_actual
+        ).scalar() or 0
+
+        ventas_mes = Venta.query.filter(
+            extract('month', Venta.fecha) == mes_actual,
+            extract('year', Venta.fecha) == anio_actual
+        ).all()
+        
+        margen_ventas_mes = 0
+        for v in ventas_mes:
+            margen_ventas_mes += (v.precio_total - v.costo_historico)
+
+        # 4. Lluvia Promedio Zonal (Mes Actual)
+        # Promedio de lo que llovió en cada lote
+        # Primero sumamos lluvia por lote, luego promediamos esos totales
+        lotes = Lote.query.all()
+        sumas_lotes = []
+        for l in lotes:
+            suma = db.session.query(func.sum(Lluvia.milimetros)).filter(
+                Lluvia.lote_id == l.id,
+                extract('month', Lluvia.fecha) == mes_actual,
+                extract('year', Lluvia.fecha) == anio_actual
+            ).scalar() or 0
+            if suma > 0: sumas_lotes.append(suma)
+        
+        lluvia_promedio = 0
+        if len(sumas_lotes) > 0:
+            lluvia_promedio = sum(sumas_lotes) / len(sumas_lotes)
+
+        return jsonify({
+            "cabezas": total_cabezas,
+            "hectareas": round(total_hectareas, 1),
+            "gastos_mes": round(gastos_mes, 2),
+            "margen_mes": round(margen_ventas_mes, 2),
+            "lluvia_mes": round(lluvia_promedio, 1)
+        })
+
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
     try:
         resultados = []
         contratos = ContratoCampo.query.all()
-        # Fechas para el cálculo de lluvia mensual
         hoy = datetime.utcnow()
-        mes_actual = hoy.month
-        anio_actual = hoy.year
-
         for contrato in contratos:
             lote = Lote.query.get(contrato.lote_id)
             if not lote: continue 
@@ -108,17 +163,16 @@ def obtener_liquidaciones():
             total_kilos = sum(c.kilos_totales for c in cosechas)
             if contrato.tipo == 'APARCERIA':
                 kilos_dueno = total_kilos * (contrato.porcentaje_dueno / 100)
-            else:
-                kilos_dueno = 0 
+            else: kilos_dueno = 0 
             kilos_propios = total_kilos - kilos_dueno
             gastos = Gasto.query.filter_by(lote_id=contrato.lote_id).all()
             total_gastos = sum(g.monto for g in gastos)
             cant_animales = Animal.query.filter_by(lote_actual_id=lote.id).count()
             
-            # 🆕 CÁLCULO DE LLUVIA ACUMULADA DEL MES
+            # Lluvia mes
             lluvias_mes = Lluvia.query.filter_by(lote_id=lote.id).filter(
-                extract('month', Lluvia.fecha) == mes_actual,
-                extract('year', Lluvia.fecha) == anio_actual
+                extract('month', Lluvia.fecha) == hoy.month,
+                extract('year', Lluvia.fecha) == hoy.year
             ).all()
             acumulado_lluvia = sum(l.milimetros for l in lluvias_mes)
 
@@ -129,7 +183,7 @@ def obtener_liquidaciones():
                 "total_cosechado": total_kilos, "kilos_propios": kilos_propios, 
                 "kilos_dueno": kilos_dueno, "total_gastos": total_gastos,
                 "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales,
-                "lluvia_mes": acumulado_lluvia # 🆕 Enviamos el dato al frontend
+                "lluvia_mes": acumulado_lluvia
             })
         return jsonify(resultados)
     except Exception as e: return jsonify({"error": str(e)}), 500
@@ -166,7 +220,6 @@ def obtener_animales():
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 REGISTRAR LLUVIA
 @app.route('/api/registrar_lluvia', methods=['POST'])
 def registrar_lluvia():
     try:
@@ -175,14 +228,8 @@ def registrar_lluvia():
         if d.get('fecha'):
             try: fecha_lluvia = datetime.strptime(d['fecha'], '%Y-%m-%d')
             except: pass
-        
-        nueva_lluvia = Lluvia(
-            lote_id=d['lote_id'],
-            milimetros=float(d['milimetros']),
-            fecha=fecha_lluvia
-        )
-        db.session.add(nueva_lluvia)
-        db.session.commit()
+        nueva_lluvia = Lluvia(lote_id=d['lote_id'], milimetros=float(d['milimetros']), fecha=fecha_lluvia)
+        db.session.add(nueva_lluvia); db.session.commit()
         return jsonify({"mensaje": "Lluvia registrada correctamente"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -274,7 +321,6 @@ def exportar_excel():
             total_kilos = sum(cos.kilos_totales for cos in cosechas)
             gastos = Gasto.query.filter_by(lote_id=lote.id).all()
             total_gastos = sum(g.monto for g in gastos)
-            # 🆕 Agregamos Lluvia al Excel también
             lluvias = Lluvia.query.filter_by(lote_id=lote.id).all()
             total_lluvia_historica = sum(l.milimetros for l in lluvias)
             data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos, "Lluvia Historica (mm)": total_lluvia_historica })
@@ -325,7 +371,7 @@ def exportar_excel():
         return send_file(output, download_name="Reporte_AgroNexo.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# --- CRUD BÁSICO ---
+# --- CRUD BÁSICO (Igual que antes) ---
 @app.route('/api/nuevo_contrato', methods=['POST'])
 def crear_contrato():
     d = request.json

@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAx
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe, CloudLightning } from 'lucide-react';
+import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe, CloudLightning, LayoutDashboard } from 'lucide-react';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -14,7 +14,8 @@ L.Marker.prototype.options.icon = DefaultIcon;
 function App() {
   const API_URL = 'https://agronexo-backend.onrender.com/api'; 
 
-  const [seccion, setSeccion] = useState('MAPA'); 
+  // 🆕 CAMBIO: Inicia en DASHBOARD
+  const [seccion, setSeccion] = useState('DASHBOARD'); 
   const [rol, setRol] = useState('PRODUCTOR'); 
   const [lotes, setLotes] = useState([]);
   const [animales, setAnimales] = useState([]);
@@ -23,6 +24,9 @@ function App() {
   const [tempPos, setTempPos] = useState(null); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [menuAbierto, setMenuAbierto] = useState(false); 
+  
+  // 🆕 ESTADO PARA EL DASHBOARD
+  const [dashboardData, setDashboardData] = useState({ cabezas: 0, hectareas: 0, gastos_mes: 0, margen_mes: 0, lluvia_mes: 0 });
 
   // Modales
   const [showModalLote, setShowModalLote] = useState(false);
@@ -41,7 +45,6 @@ function App() {
   const [animalesSeleccionados, setAnimalesSeleccionados] = useState([]);
   const [loteDestino, setLoteDestino] = useState("");
 
-  // Formularios
   const [nuevoContrato, setNuevoContrato] = useState({ nombreLote: '', hectareas: '', propietario: '', tipo: 'APARCERIA', porcentaje: 0, lat: null, lng: null });
   const [nuevaCosecha, setNuevaCosecha] = useState({ lote_id: null, lote_nombre: '', kilos: '' });
   const [nuevoAnimal, setNuevoAnimal] = useState({ caravana: '', raza: 'Braford', categoria: 'Ternero', peso_inicial: '', fecha: '' });
@@ -66,6 +69,9 @@ function App() {
         else cargarClima(-26.78, -60.85, 'Chaco (General)');
     }).catch(err => console.error(err));
     axios.get(`${API_URL}/animales`).then(res => setAnimales(res.data));
+    
+    // 🆕 CARGAR DATOS DEL DASHBOARD
+    axios.get(`${API_URL}/resumen_general`).then(res => setDashboardData(res.data)).catch(console.error);
   };
 
   const cargarClima = (lat, lng, nombreLote) => {
@@ -193,6 +199,10 @@ function App() {
               overflowY: 'auto'
           }}>
              {!isMobile && <h2 style={{color:'#4ade80', marginBottom:'30px'}}>AgroNexo ☁️</h2>}
+             
+             {/* 🆕 BOTÓN DE INICIO / RESUMEN */}
+             <button onClick={() => cambiarSeccion('DASHBOARD')} style={{...btnMenu, background: seccion === 'DASHBOARD' ? '#1e293b' : 'transparent'}}><LayoutDashboard size={20}/> Resumen / Inicio</button>
+             
              <button onClick={() => cambiarSeccion('MAPA')} style={{...btnMenu, background: seccion === 'MAPA' ? '#1e293b' : 'transparent'}}><MapPin size={20}/> Mapa General</button>
              <button onClick={() => cambiarSeccion('AGRICULTURA')} style={{...btnMenu, background: seccion === 'AGRICULTURA' ? '#1e293b' : 'transparent'}}><Sprout size={20}/> Agricultura</button>
              <button onClick={() => cambiarSeccion('GANADERIA')} style={{...btnMenu, background: seccion === 'GANADERIA' ? '#1e293b' : 'transparent'}}><Tractor size={20}/> Ganadería</button>
@@ -218,6 +228,66 @@ function App() {
           {isMobile && menuAbierto && (<div onClick={() => setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex: 25}}></div>)}
 
           <main style={{flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflowY: seccion === 'MAPA' ? 'hidden' : 'auto'}}>
+              
+              {/* 🆕 SECCIÓN DASHBOARD */}
+              {seccion === 'DASHBOARD' && (
+                  <div style={{padding: '20px', paddingBottom: '80px'}}>
+                      <h1 style={{color:'#1e293b', fontSize: isMobile ? '1.5rem' : '2rem', marginBottom:'20px'}}>Hola, Productor 👋</h1>
+                      
+                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))', gap:'20px'}}>
+                          
+                          {/* TARJETA GANADERÍA */}
+                          <div style={{background:'white', padding:'20px', borderRadius:'15px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', borderLeft:'5px solid #22c55e'}}>
+                              <div style={{display:'flex', alignItems:'center', gap:'10px', color:'#64748b'}}>
+                                  <Tractor size={20}/> <span style={{fontWeight:'bold'}}>Hacienda Activa</span>
+                              </div>
+                              <div style={{fontSize:'2.5rem', fontWeight:'bold', color:'#0f172a', margin:'10px 0'}}>
+                                  {dashboardData.cabezas} <span style={{fontSize:'1rem', color:'#64748b'}}>cabezas</span>
+                              </div>
+                              <button onClick={()=>cambiarSeccion('GANADERIA')} style={{...btnOutline, width:'auto', fontSize:'0.8rem'}}>Ver Animales</button>
+                          </div>
+
+                          {/* TARJETA AGRICULTURA */}
+                          <div style={{background:'white', padding:'20px', borderRadius:'15px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', borderLeft:'5px solid #eab308'}}>
+                              <div style={{display:'flex', alignItems:'center', gap:'10px', color:'#64748b'}}>
+                                  <Sprout size={20}/> <span style={{fontWeight:'bold'}}>Superficie Cargada</span>
+                              </div>
+                              <div style={{fontSize:'2.5rem', fontWeight:'bold', color:'#0f172a', margin:'10px 0'}}>
+                                  {dashboardData.hectareas} <span style={{fontSize:'1rem', color:'#64748b'}}>has</span>
+                              </div>
+                              <button onClick={()=>cambiarSeccion('AGRICULTURA')} style={{...btnOutline, width:'auto', fontSize:'0.8rem'}}>Ver Lotes</button>
+                          </div>
+
+                          {/* TARJETA FINANZAS MES */}
+                          <div style={{background:'white', padding:'20px', borderRadius:'15px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', borderLeft:'5px solid #3b82f6'}}>
+                              <div style={{display:'flex', alignItems:'center', gap:'10px', color:'#64748b'}}>
+                                  <DollarSign size={20}/> <span style={{fontWeight:'bold'}}>Finanzas (Este Mes)</span>
+                              </div>
+                              <div style={{marginTop:'10px'}}>
+                                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', color:'#ef4444'}}>
+                                      <span>Gastos:</span> <strong>$ {dashboardData.gastos_mes.toLocaleString()}</strong>
+                                  </div>
+                                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', color:'#16a34a', marginTop:'5px'}}>
+                                      <span>Margen Ventas:</span> <strong>$ {dashboardData.margen_mes.toLocaleString()}</strong>
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* TARJETA CLIMA */}
+                          <div style={{background:'white', padding:'20px', borderRadius:'15px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', borderLeft:'5px solid #0ea5e9'}}>
+                              <div style={{display:'flex', alignItems:'center', gap:'10px', color:'#64748b'}}>
+                                  <CloudRain size={20}/> <span style={{fontWeight:'bold'}}>Lluvia Zonal (Mes)</span>
+                              </div>
+                              <div style={{fontSize:'2.5rem', fontWeight:'bold', color:'#0f172a', margin:'10px 0'}}>
+                                  {dashboardData.lluvia_mes} <span style={{fontSize:'1rem', color:'#64748b'}}>mm (prom)</span>
+                              </div>
+                              <small style={{color:'#94a3b8'}}>Promedio de todos los lotes</small>
+                          </div>
+
+                      </div>
+                  </div>
+              )}
+
               {seccion === 'MAPA' ? (
                   <div style={{flex: 1, width: '100%', height: '100%', zIndex: 1}}>
                        <style>{` .leaflet-container { height: 100% !important; width: 100% !important; } `}</style>
@@ -240,7 +310,7 @@ function App() {
                           ))}
                        </MapContainer>
                   </div>
-              ) : (
+              ) : seccion !== 'DASHBOARD' && (
                   <div style={{padding: '20px', paddingBottom: '80px'}}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                             <h1 style={{color:'#1e293b', fontSize: isMobile ? '1.5rem' : '2rem'}}>{seccion === 'AGRICULTURA' ? 'Agricultura' : 'Ganadería'}</h1>
@@ -265,7 +335,6 @@ function App() {
                                     <div key={item.id} style={cardEstilo} onClick={() => cargarClima(item.lat, item.lng, item.lote)}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}> <div><h3 style={{margin:0, color:'#0f172a', fontWeight:'bold', fontSize:'1.2rem'}}>{item.lote}</h3><span style={tagEstilo}>{item.tipo} {item.porcentaje}%</span></div> <div style={{display:'flex', gap:'5px'}}> <button onClick={(e) => {e.stopPropagation(); abrirEditarLote(item)}} style={{...btnIcon, color:'#3b82f6'}}><Edit size={18}/></button> <button onClick={(e) => {e.stopPropagation(); eliminarLote(item.lote_id)}} style={{...btnIcon, color:'#ef4444'}}><Trash2 size={18}/></button> </div> </div>
                                         <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', margin:'10px 0', border:'1px solid #bbf7d0'}}> 
-                                            {/* 🆕 AQUI ESTÁ LA LLUVIA AGREGADA EN AGRICULTURA */}
                                             <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', marginBottom:'5px', color:'#2563eb'}}>
                                                 <span>🌧️ Lluvia (Mes):</span>
                                                 <strong>{item.lluvia_mes || 0} mm</strong>
@@ -318,7 +387,7 @@ function App() {
                   </div>
               )}
 
-              {/* MODALES */}
+              {/* MODALES IGUALES */}
               {showModalLluvia && (<div style={modalBackdrop} onClick={()=>setShowModalLluvia(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#2563eb'}}>Registrar Lluvia 🌧️</h3><button onClick={()=>setShowModalLluvia(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={guardarLluvia} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={nuevoRegistroLluvia.fecha} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Lote / Campo:</label><select style={inputStyle} value={nuevoRegistroLluvia.lote_id} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, lote_id:e.target.value})} required><option value="">-- Seleccionar --</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Milímetros (mm):</label><input type="number" placeholder="Ej: 45" value={nuevoRegistroLluvia.milimetros} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, milimetros:e.target.value})} style={inputStyle} required/><button style={{...btnAzul, background:'#2563eb'}}>Guardar Lluvia</button></form></div></div>)}
               {showModalSanidad && (<div style={modalBackdrop} onClick={()=>setShowModalSanidad(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Campaña Sanitaria 💉</h3><button onClick={()=>setShowModalSanidad(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarSanidad} style={formStyle}><label style={labelStyle}>Fecha:</label><input type="date" value={datosSanidad.fecha} onChange={e=>setDatosSanidad({...datosSanidad, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Concepto / Tratamiento:</label><input placeholder="Ej: Vacuna Aftosa" value={datosSanidad.concepto} onChange={e=>setDatosSanidad({...datosSanidad, concepto:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Aplicar a:</label><select style={inputStyle} value={datosSanidad.lote_id} onChange={e=>setDatosSanidad({...datosSanidad, lote_id:e.target.value})}><option value="all">Todo el Rodeo</option><option value="corral">Solo en Corral / Sin Lote</option>{lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}</select><label style={labelStyle}>Costo TOTAL de la Campaña ($):</label><input type="number" placeholder="$ Total Gastado" value={datosSanidad.monto} onChange={e=>setDatosSanidad({...datosSanidad, monto:e.target.value})} style={inputStyle} required/><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.</div><button style={{...btnAzul, background:'#16a34a'}}>Aplicar Gasto Masivo</button></form></div></div>)}
               {showModalVenta && (<div style={modalBackdrop} onClick={()=>setShowModalVenta(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#16a34a'}}>Registrar Venta 💰</h3><button onClick={()=>setShowModalVenta(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><form onSubmit={confirmarVenta} style={formStyle}><label style={labelStyle}>Fecha de Venta:</label><input type="date" value={datosVenta.fecha} onChange={e=>setDatosVenta({...datosVenta, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Comprador / Destino:</label><input placeholder="Ej: Frigorífico Norte" value={datosVenta.comprador} onChange={e=>setDatosVenta({...datosVenta, comprador:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Kilos Totales de Venta:</label><input type="number" placeholder="Kg" value={datosVenta.kilos} onChange={e=>setDatosVenta({...datosVenta, kilos:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Precio por Kg ($):</label><input type="number" placeholder="$" value={datosVenta.precio} onChange={e=>setDatosVenta({...datosVenta, precio:e.target.value})} style={inputStyle} required/><div style={{textAlign:'right', marginTop:'5px', fontWeight:'bold', color:'#16a34a'}}>Total Operación: $ {totalEstimado}</div><div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0', marginTop:'10px'}}>ℹ️ Se calculará el total automáticamente y el animal saldrá del stock.</div><button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button></form></div></div>)}
