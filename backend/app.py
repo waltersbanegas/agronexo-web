@@ -70,7 +70,6 @@ class Gasto(db.Model):
     lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=True)
 
-# 🆕 NUEVA TABLA: VENTAS
 class Venta(db.Model):
     __tablename__ = 'venta'
     id = db.Column(db.Integer, primary_key=True)
@@ -79,7 +78,7 @@ class Venta(db.Model):
     comprador = db.Column(db.String(100))
     kilos_venta = db.Column(db.Float)
     precio_total = db.Column(db.Float)
-    costo_historico = db.Column(db.Float) # Para guardar cuánto se gastó hasta el momento de la venta
+    costo_historico = db.Column(db.Float)
 
 # --- RUTAS ---
 
@@ -112,14 +111,13 @@ def obtener_liquidaciones():
         return jsonify(resultados)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# ⚠️ MODIFICADO: Solo devuelve animales VIVOS (no vendidos)
 @app.route('/api/animales', methods=['GET'])
 def obtener_animales():
     try:
         lista = []
         todos = Animal.query.all()
         for vaca in todos:
-            # 🛑 Si ya está vendido, lo saltamos
+            # Si ya está vendido, lo saltamos
             vendido = Venta.query.filter_by(animal_id=vaca.id).first()
             if vendido: continue
 
@@ -151,7 +149,6 @@ def obtener_animales():
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 REGISTRAR VENTA
 @app.route('/api/registrar_venta', methods=['POST'])
 def registrar_venta():
     try:
@@ -162,27 +159,26 @@ def registrar_venta():
             try: fecha_venta = datetime.strptime(d['fecha'], '%Y-%m-%d')
             except: pass
             
-        # Calcular costos hasta hoy
         gastos = Gasto.query.filter_by(animal_id=animal_id).all()
         total_costo = sum(g.monto for g in gastos)
         
+        # El frontend ahora nos manda el precio_total calculado (precio_kg * kilos)
+        precio_total_recibido = float(d['precio'])
+
         nueva_venta = Venta(
             animal_id=animal_id,
             fecha=fecha_venta,
             comprador=d['comprador'],
             kilos_venta=float(d['kilos']),
-            precio_total=float(d['precio']),
+            precio_total=precio_total_recibido,
             costo_historico=total_costo
         )
         db.session.add(nueva_venta)
-        
-        # Desvinculamos al animal de cualquier lote (ya no come pasto)
         animal = Animal.query.get(animal_id)
         animal.lote_actual_id = None
-        
         db.session.commit()
         
-        margen = float(d['precio']) - total_costo
+        margen = precio_total_recibido - total_costo
         return jsonify({"mensaje": "Venta exitosa", "margen": margen})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -211,11 +207,10 @@ def detalle_animal(id):
         return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# ⚠️ EXCEL ACTUALIZADO CON PESTAÑA VENTAS
+# ⚠️ EXCEL ACTUALIZADO: Calcula Precio Promedio/Kg
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     try:
-        # Agro
         data_agro = []
         contratos = ContratoCampo.query.all()
         for c in contratos:
@@ -227,13 +222,10 @@ def exportar_excel():
             total_gastos = sum(g.monto for g in gastos)
             data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos })
 
-        # Ganadería Activa
         data_ganaderia = []
         animales = Animal.query.all()
         for a in animales:
-            # Si es vendido, NO va en esta lista
             if Venta.query.filter_by(animal_id=a.id).first(): continue
-            
             pesajes = Peso.query.filter_by(animal_id=a.id).order_by(Peso.fecha.desc()).all()
             peso_actual = pesajes[0].kilos if pesajes else 0
             gastos_animal = Gasto.query.filter_by(animal_id=a.id).all()
@@ -244,28 +236,47 @@ def exportar_excel():
                 if l: ubic = l.nombre
             data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Ubicación": ubic, "Peso Actual (kg)": peso_actual, "Costo Acumulado ($)": total_gastos_animal })
 
-        # 🆕 REPORTE DE VENTAS (CIERRE DE NEGOCIO)
         data_ventas = []
         ventas = Venta.query.all()
         for v in ventas:
             a = Animal.query.get(v.animal_id)
             caravana = a.caravana if a else "Desconocido"
             margen = v.precio_total - v.costo_historico
+            
+            # 🆕 CÁLCULO PRECIO POR KILO
+            precio_promedio_kg = 0
+            if v.kilos_venta and v.kilos_venta > 0:
+                precio_promedio_kg = v.precio_total / v.kilos_venta
+
             data_ventas.append({
                 "Fecha Venta": v.fecha.strftime('%d/%m/%Y'),
                 "Caravana": caravana,
                 "Comprador": v.comprador,
                 "Kg Venta": v.kilos_venta,
-                "Precio Venta ($)": v.precio_total,
+                "Precio Total ($)": v.precio_total,
+                "Precio Promedio/Kg ($)": round(precio_promedio_kg, 2), # 🆕 COLUMNA NUEVA
                 "Costo Producción ($)": v.costo_historico,
                 "MARGEN ($)": margen
             })
+
+        data_gastos = []
+        todos_gastos = Gasto.query.all()
+        for g in todos_gastos:
+            destino = "General"
+            if g.lote_id: 
+                l = Lote.query.get(g.lote_id)
+                destino = f"Lote: {l.nombre}" if l else "Lote Eliminado"
+            elif g.animal_id:
+                a = Animal.query.get(g.animal_id)
+                destino = f"Animal: {a.caravana}" if a else "Animal Eliminado"
+            data_gastos.append({ "Fecha": g.fecha.strftime('%d/%m/%Y'), "Concepto": g.concepto, "Categoría": g.categoria, "Monto": g.monto, "Destino": destino })
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             pd.DataFrame(data_agro).to_excel(writer, sheet_name='Agricultura', index=False)
             pd.DataFrame(data_ganaderia).to_excel(writer, sheet_name='Stock Activo', index=False)
             pd.DataFrame(data_ventas).to_excel(writer, sheet_name='Ventas y Margenes', index=False)
+            pd.DataFrame(data_gastos).to_excel(writer, sheet_name='Detalle Gastos', index=False)
         output.seek(0)
         return send_file(output, download_name="Reporte_AgroNexo.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e: return jsonify({"error": str(e)}), 500

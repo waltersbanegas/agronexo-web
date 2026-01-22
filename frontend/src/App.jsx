@@ -32,7 +32,7 @@ function App() {
   const [showModalGasto, setShowModalGasto] = useState(false); 
   const [showModalDetalleAnimal, setShowModalDetalleAnimal] = useState(false);
   const [showModalMover, setShowModalMover] = useState(false); 
-  const [showModalVenta, setShowModalVenta] = useState(false); // 🆕 MODAL VENTA
+  const [showModalVenta, setShowModalVenta] = useState(false); 
   
   const [modoEdicion, setModoEdicion] = useState(null); 
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -47,7 +47,7 @@ function App() {
   const [nuevoGasto, setNuevoGasto] = useState({ lote_id: null, animal_id: null, nombre_destino: '', concepto: '', monto: '', categoria: 'INSUMO', fecha: '' });
   
   const [datosDetalleAnimal, setDatosDetalleAnimal] = useState(null);
-  // 🆕 DATOS VENTA
+  // 🆕 'precio' ahora guardará el PRECIO POR KILO temporalmente
   const [datosVenta, setDatosVenta] = useState({ animal_id: null, fecha: '', comprador: '', kilos: '', precio: '' });
 
   useEffect(() => {
@@ -88,8 +88,8 @@ function App() {
   const abrirDetalleAnimal = (vaca) => {
       if (modoSeleccion) { toggleSeleccion(vaca.id); return; }
       setDatosDetalleAnimal(null);
-      // Guardamos ID por si quiere vender
-      setDatosVenta({...datosVenta, animal_id: vaca.id, fecha: '', comprador: '', kilos: '', precio: ''});
+      // Al abrir venta, sugerimos el último peso conocido como kilos de venta
+      setDatosVenta({...datosVenta, animal_id: vaca.id, fecha: '', comprador: '', kilos: vaca.peso_actual || '', precio: ''});
       setShowModalDetalleAnimal(true);
       axios.get(`${API_URL}/detalle_animal/${vaca.id}`).then(res => setDatosDetalleAnimal(res.data));
   };
@@ -114,20 +114,33 @@ function App() {
 
   const irACrearLote = () => { setShowModalMover(false); abrirNuevoLote(); };
 
-  // 🆕 REGISTRAR VENTA
   const iniciarVenta = () => {
-      setShowModalDetalleAnimal(false); // Cierra historial
-      setShowModalVenta(true); // Abre form venta
+      setShowModalDetalleAnimal(false);
+      setShowModalVenta(true);
   };
 
+  // 🆕 LÓGICA DE VENTA CORREGIDA
   const confirmarVenta = (e) => {
       e.preventDefault();
-      axios.post(`${API_URL}/registrar_venta`, datosVenta).then((res) => {
-          alert(`✅ VENTA EXITOSA\nMargen de Ganancia: $ ${res.data.margen.toLocaleString()}`);
+      // Calculamos el Total (Kilos * PrecioUnitario) antes de enviar
+      const totalVenta = parseFloat(datosVenta.kilos) * parseFloat(datosVenta.precio);
+      
+      const dataToSend = {
+          ...datosVenta,
+          precio: totalVenta // Enviamos el TOTAL al backend
+      };
+
+      axios.post(`${API_URL}/registrar_venta`, dataToSend).then((res) => {
+          alert(`✅ VENTA EXITOSA\nTotal: $ ${totalVenta.toLocaleString()}\nMargen: $ ${res.data.margen.toLocaleString()}`);
           setShowModalVenta(false);
-          cargarTodo(); // Recarga y el animal desaparece de la lista
+          cargarTodo();
       }).catch(() => alert("Error al registrar venta"));
   };
+
+  // Cálculo visual para el modal
+  const totalEstimado = (datosVenta.kilos && datosVenta.precio) 
+      ? (parseFloat(datosVenta.kilos) * parseFloat(datosVenta.precio)).toLocaleString() 
+      : '0';
 
   useEffect(() => { cargarTodo(); }, []);
 
@@ -223,6 +236,7 @@ function App() {
                                     </div>
                                 )
                             })}
+                            
                             {seccion === 'GANADERIA' && animales.map((vaca) => (
                                 <div key={vaca.id} style={{...cardEstilo, border: animalesSeleccionados.includes(vaca.id) ? '2px solid #2563eb' : 'none'}} onClick={() => abrirDetalleAnimal(vaca)}>
                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -262,9 +276,7 @@ function App() {
                   </div>
               )}
 
-              {/* MODALES */}
-              
-              {/* MODAL VENTA (NUEVO) */}
+              {/* MODAL VENTA (CORREGIDO CON PRECIO POR KILO) */}
               {showModalVenta && (
                   <div style={modalBackdrop} onClick={()=>setShowModalVenta(false)}>
                       <div style={modalContent} onClick={e=>e.stopPropagation()}>
@@ -282,11 +294,17 @@ function App() {
                               <label style={labelStyle}>Kilos Totales de Venta:</label>
                               <input type="number" placeholder="Kg" value={datosVenta.kilos} onChange={e=>setDatosVenta({...datosVenta, kilos:e.target.value})} style={inputStyle} required/>
                               
-                              <label style={labelStyle}>Precio Total ($):</label>
+                              {/* 🆕 AHORA PIDE PRECIO POR KILO */}
+                              <label style={labelStyle}>Precio por Kg ($):</label>
                               <input type="number" placeholder="$" value={datosVenta.precio} onChange={e=>setDatosVenta({...datosVenta, precio:e.target.value})} style={inputStyle} required/>
                               
-                              <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>
-                                  ℹ️ Al confirmar, el animal saldrá de la lista activa y se calculará el margen sobre sus costos.
+                              {/* 🆕 MUESTRA EL CÁLCULO TOTAL */}
+                              <div style={{textAlign:'right', marginTop:'5px', fontWeight:'bold', color:'#16a34a'}}>
+                                  Total Operación: $ {totalEstimado}
+                              </div>
+
+                              <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0', marginTop:'10px'}}>
+                                  ℹ️ Se calculará el total automáticamente y el animal saldrá del stock.
                               </div>
 
                               <button style={{...btnAzul, background:'#16a34a'}}>Confirmar Venta</button>
@@ -295,81 +313,9 @@ function App() {
                   </div>
               )}
 
-              {showModalMover && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalMover(false)}>
-                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
-                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                              <h3 style={{margin:0, color:'#0f172a'}}>Rotar Hacienda</h3>
-                              <button onClick={()=>setShowModalMover(false)} style={btnIcon}><X size={24} color="#0f172a"/></button>
-                          </div>
-                          <p style={{color:'#334155'}}>Vas a mover <strong>{animalesSeleccionados.length} animales</strong>.</p>
-                          <label style={labelStyle}>Selecciona Lote Destino:</label>
-                          <select style={inputStyle} value={loteDestino} onChange={e=>setLoteDestino(e.target.value)}>
-                              <option value="">-- A Corral / Sin Lote --</option>
-                              {lotes.map(l => (
-                                  <option key={l.id} value={l.lote_id}>{l.lote}</option>
-                              ))}
-                          </select>
-                          <div style={{marginTop:'10px', textAlign:'right'}}>
-                              <button onClick={irACrearLote} style={{background:'transparent', border:'none', color:'#2563eb', textDecoration:'underline', cursor:'pointer', fontSize:'0.9rem'}}>+ Crear Nuevo Lote/Corral</button>
-                          </div>
-                          <div style={{display:'flex', gap:'10px', marginTop:'20px'}}>
-                              <button onClick={confirmarMovimiento} style={{...btnAzul, flex:1}}>Confirmar Movimiento</button>
-                              <button onClick={()=>setShowModalMover(false)} style={btnGris}>Cancelar</button>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {showModalDetalleAnimal && (
-                  <div style={modalBackdrop} onClick={()=>setShowModalDetalleAnimal(false)}>
-                      <div style={{...modalContent, maxWidth:'600px'}} onClick={e=>e.stopPropagation()}>
-                          {datosDetalleAnimal ? (
-                              <>
-                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                                    <h2 style={{margin:0, color:'#0f172a'}}>Historia: {datosDetalleAnimal.caravana}</h2>
-                                    <button onClick={()=>setShowModalDetalleAnimal(false)} style={{background:'transparent', border:'none', cursor:'pointer'}}><X size={28} color="#0f172a"/></button>
-                                </div>
-                                
-                                {/* 🆕 BOTÓN DE VENTA DENTRO DE LA HISTORIA */}
-                                <div style={{marginBottom:'20px'}}>
-                                    <button onClick={iniciarVenta} style={{...btnOutline, borderColor:'#16a34a', color:'#16a34a', background:'#f0fdf4'}}>
-                                        <Banknote size={20}/> 💲 Registrar Venta / Salida
-                                    </button>
-                                </div>
-
-                                <div style={{height:'300px', width:'100%', background:'#f8fafc', borderRadius:'10px', padding:'10px', marginBottom:'20px'}}>
-                                    <h4 style={{margin:'0 0 10px 0', color:'#64748b'}}>Curva de Engorde</h4>
-                                    <ResponsiveContainer>
-                                        <LineChart data={datosDetalleAnimal.historial_pesos}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="fecha" />
-                                            <YAxis />
-                                            <Tooltip />
-                                            <Line type="monotone" dataKey="kilos" stroke="#16a34a" strokeWidth={3} activeDot={{ r: 8 }} />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                <div>
-                                    <h4 style={{margin:'0 0 10px 0', color:'#dc2626'}}>Historial de Gastos</h4>
-                                    <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #e2e8f0', borderRadius:'8px'}}>
-                                        {datosDetalleAnimal.historial_gastos.length > 0 ? (
-                                            datosDetalleAnimal.historial_gastos.map((g, i) => (
-                                                <div key={i} style={{display:'flex', justifyContent:'space-between', padding:'10px', borderBottom:'1px solid #f1f5f9', fontSize:'0.9rem', color:'#334155'}}>
-                                                    <span>{g.fecha} - {g.concepto}</span>
-                                                    <strong style={{color:'#dc2626'}}>$ {g.monto}</strong>
-                                                </div>
-                                            ))
-                                        ) : <div style={{padding:'10px', color:'#94a3b8', textAlign:'center'}}>Sin gastos registrados</div>}
-                                    </div>
-                                </div>
-                              </>
-                          ) : <p style={{color:'#334155'}}>Cargando historia...</p>}
-                      </div>
-                  </div>
-              )}
-
-              {/* RESTO DE MODALES */}
+              {/* RESTO DE MODALES SIN CAMBIOS */}
+              {showModalMover && (<div style={modalBackdrop} onClick={()=>setShowModalMover(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><h3 style={{margin:0, color:'#0f172a'}}>Rotar Hacienda</h3><button onClick={()=>setShowModalMover(false)} style={btnIcon}><X size={24} color="#0f172a"/></button></div><p style={{color:'#334155'}}>Vas a mover <strong>{animalesSeleccionados.length} animales</strong>.</p><label style={labelStyle}>Selecciona Lote Destino:</label><select style={inputStyle} value={loteDestino} onChange={e=>setLoteDestino(e.target.value)}><option value="">-- A Corral / Sin Lote --</option>{lotes.map(l => (<option key={l.id} value={l.lote_id}>{l.lote}</option>))}</select><div style={{marginTop:'10px', textAlign:'right'}}><button onClick={irACrearLote} style={{background:'transparent', border:'none', color:'#2563eb', textDecoration:'underline', cursor:'pointer', fontSize:'0.9rem'}}>+ Crear Nuevo Lote/Corral</button></div><div style={{display:'flex', gap:'10px', marginTop:'20px'}}><button onClick={confirmarMovimiento} style={{...btnAzul, flex:1}}>Confirmar Movimiento</button><button onClick={()=>setShowModalMover(false)} style={btnGris}>Cancelar</button></div></div></div>)}
+              {showModalDetalleAnimal && (<div style={modalBackdrop} onClick={()=>setShowModalDetalleAnimal(false)}><div style={{...modalContent, maxWidth:'600px'}} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}><h2 style={{margin:0, color:'#0f172a'}}>Historia: {datosDetalleAnimal?.caravana}</h2><button onClick={()=>setShowModalDetalleAnimal(false)} style={{background:'transparent', border:'none', cursor:'pointer'}}><X size={28} color="#0f172a"/></button></div><div style={{marginBottom:'20px'}}><button onClick={iniciarVenta} style={{...btnOutline, borderColor:'#16a34a', color:'#16a34a', background:'#f0fdf4'}}><Banknote size={20}/> 💲 Registrar Venta / Salida</button></div>{datosDetalleAnimal && (<><div style={{height:'300px', width:'100%', background:'#f8fafc', borderRadius:'10px', padding:'10px', marginBottom:'20px'}}><h4 style={{margin:'0 0 10px 0', color:'#64748b'}}>Curva de Engorde</h4><ResponsiveContainer><LineChart data={datosDetalleAnimal.historial_pesos}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="fecha" /><YAxis /><Tooltip /><Line type="monotone" dataKey="kilos" stroke="#16a34a" strokeWidth={3} activeDot={{ r: 8 }} /></LineChart></ResponsiveContainer></div><div><h4 style={{margin:'0 0 10px 0', color:'#dc2626'}}>Historial de Gastos</h4><div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #e2e8f0', borderRadius:'8px'}}>{datosDetalleAnimal.historial_gastos.length > 0 ? (datosDetalleAnimal.historial_gastos.map((g, i) => (<div key={i} style={{display:'flex', justifyContent:'space-between', padding:'10px', borderBottom:'1px solid #f1f5f9', fontSize:'0.9rem', color:'#334155'}}><span>{g.fecha} - {g.concepto}</span><strong style={{color:'#dc2626'}}>$ {g.monto}</strong></div>))) : <div style={{padding:'10px', color:'#94a3b8', textAlign:'center'}}>Sin gastos registrados</div>}</div></div></>)}</div></div>)}
               {showModalLote && (<div style={modalBackdrop} onClick={()=>setShowModalLote(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3><button onClick={()=>setShowModalLote(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarContrato} style={formStyle}><label style={labelStyle}>Nombre del Lote:</label><input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Hectáreas:</label><input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS OK' : 'Usar GPS'}</button><label style={labelStyle}>Dueño:</label><input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/><div style={{display:'flex', gap:'10px'}}><select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select><input placeholder="%" type="number" value={nuevoContrato.porcentaje} onChange={e=>setNuevoContrato({...nuevoContrato, porcentaje:e.target.value})} style={{...inputStyle, width:'80px'}}/></div><button style={btnAzul}>{modoEdicion ? 'Guardar' : 'Crear'}</button><button type="button" onClick={()=>setShowModalLote(false)} style={btnGris}>Cancelar</button></form></div></div>)}
               {showModalAnimal && (<div style={modalBackdrop} onClick={()=>setShowModalAnimal(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Alta Animal</h3><button onClick={()=>setShowModalAnimal(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarAnimal} style={formStyle}><label style={labelStyle}>Fecha Ingreso:</label><input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/><label style={labelStyle}>Caravana:</label><input placeholder="Ej: A-001" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/><label style={labelStyle}>Raza:</label><select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option></select><label style={labelStyle}>Categoría:</label><select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option></select><label style={labelStyle}>Peso Inicial:</label><input placeholder="Kilos" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/><button style={btnAzul}>Guardar</button><button type="button" onClick={()=>setShowModalAnimal(false)} style={btnGris}>Cancelar</button></form></div></div>)}
               {showModalCosecha && (<div style={modalBackdrop} onClick={()=>setShowModalCosecha(false)}><div style={modalContent} onClick={e=>e.stopPropagation()}><div style={{display:'flex', justifyContent:'space-between'}}><h3 style={{color:'#0f172a'}}>Cargar Camión</h3><button onClick={()=>setShowModalCosecha(false)} style={btnIcon}><X color="#000"/></button></div><form onSubmit={guardarCosecha} style={formStyle}><label style={labelStyle}>Kilos:</label><input type="number" placeholder="Kilos" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalCosecha(false)} style={btnGris}>Cancelar</button></form></div></div>)}
