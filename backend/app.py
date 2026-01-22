@@ -117,20 +117,15 @@ def obtener_animales():
         lista = []
         todos = Animal.query.all()
         for vaca in todos:
-            # Si ya está vendido, lo saltamos
-            vendido = Venta.query.filter_by(animal_id=vaca.id).first()
-            if vendido: continue
-
+            if Venta.query.filter_by(animal_id=vaca.id).first(): continue
             pesajes = Peso.query.filter_by(animal_id=vaca.id).order_by(Peso.fecha.desc()).all()
             gastos = Gasto.query.filter_by(animal_id=vaca.id).all()
             total_gastos = sum(g.monto for g in gastos)
             peso_act = 0; gdp = 0; ult = "Sin datos"
-            
             ubicacion = "En Corral / Sin Lote"
             if vaca.lote_actual_id:
                 lote = Lote.query.get(vaca.lote_actual_id)
                 if lote: ubicacion = lote.nombre
-
             if pesajes:
                 peso_act = pesajes[0].kilos
                 ult = pesajes[0].fecha.strftime("%d/%m/%Y")
@@ -138,7 +133,6 @@ def obtener_animales():
                     dif_k = peso_act - pesajes[1].kilos
                     dif_d = (pesajes[0].fecha - pesajes[1].fecha).days
                     if dif_d > 0: gdp = dif_k / dif_d
-            
             lista.append({
                 "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza,
                 "categoria": vaca.categoria, "peso_actual": peso_act,
@@ -147,6 +141,60 @@ def obtener_animales():
                 "lote_actual_id": vaca.lote_actual_id
             })
         return jsonify(lista)
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# 🆕 NUEVA RUTA: GASTO MASIVO (SANIDAD)
+@app.route('/api/gasto_masivo', methods=['POST'])
+def gasto_masivo():
+    try:
+        d = request.json
+        lote_id = d.get('lote_id') # Puede ser 'all' o un ID numérico
+        monto_total = float(d['monto'])
+        concepto = d['concepto']
+        fecha_gasto = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha_gasto = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+
+        # 1. Buscar a los destinatarios
+        animales_destino = []
+        todos = Animal.query.all()
+        
+        for a in todos:
+            # Filtro 1: No aplicar a vendidos
+            if Venta.query.filter_by(animal_id=a.id).first(): continue
+            
+            # Filtro 2: Ubicación
+            if lote_id == 'all':
+                animales_destino.append(a)
+            elif lote_id == 'corral': # Si elegimos "En Corral" (lote_actual_id es None)
+                if a.lote_actual_id is None:
+                    animales_destino.append(a)
+            else: # Lote específico
+                if a.lote_actual_id == int(lote_id):
+                    animales_destino.append(a)
+        
+        count = len(animales_destino)
+        if count == 0:
+            return jsonify({"error": "No hay animales en ese destino para aplicar el gasto"}), 400
+
+        # 2. Dividir monto
+        monto_individual = monto_total / count
+
+        # 3. Aplicar gasto
+        for a in animales_destino:
+            nuevo_gasto = Gasto(
+                fecha=fecha_gasto,
+                concepto=f"{concepto} (Campaña)",
+                monto=monto_individual,
+                categoria="SANITARIO",
+                animal_id=a.id
+            )
+            db.session.add(nuevo_gasto)
+        
+        db.session.commit()
+        return jsonify({"mensaje": f"Aplicado a {count} animales. ${round(monto_individual, 2)} c/u"})
+
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/registrar_venta', methods=['POST'])
@@ -158,13 +206,9 @@ def registrar_venta():
         if d.get('fecha'):
             try: fecha_venta = datetime.strptime(d['fecha'], '%Y-%m-%d')
             except: pass
-            
         gastos = Gasto.query.filter_by(animal_id=animal_id).all()
         total_costo = sum(g.monto for g in gastos)
-        
-        # El frontend ahora nos manda el precio_total calculado (precio_kg * kilos)
         precio_total_recibido = float(d['precio'])
-
         nueva_venta = Venta(
             animal_id=animal_id,
             fecha=fecha_venta,
@@ -177,7 +221,6 @@ def registrar_venta():
         animal = Animal.query.get(animal_id)
         animal.lote_actual_id = None
         db.session.commit()
-        
         margen = precio_total_recibido - total_costo
         return jsonify({"mensaje": "Venta exitosa", "margen": margen})
     except Exception as e: return jsonify({"error": str(e)}), 500
@@ -207,7 +250,6 @@ def detalle_animal(id):
         return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# ⚠️ EXCEL ACTUALIZADO: Calcula Precio Promedio/Kg
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     try:
@@ -242,19 +284,16 @@ def exportar_excel():
             a = Animal.query.get(v.animal_id)
             caravana = a.caravana if a else "Desconocido"
             margen = v.precio_total - v.costo_historico
-            
-            # 🆕 CÁLCULO PRECIO POR KILO
             precio_promedio_kg = 0
             if v.kilos_venta and v.kilos_venta > 0:
                 precio_promedio_kg = v.precio_total / v.kilos_venta
-
             data_ventas.append({
                 "Fecha Venta": v.fecha.strftime('%d/%m/%Y'),
                 "Caravana": caravana,
                 "Comprador": v.comprador,
                 "Kg Venta": v.kilos_venta,
                 "Precio Total ($)": v.precio_total,
-                "Precio Promedio/Kg ($)": round(precio_promedio_kg, 2), # 🆕 COLUMNA NUEVA
+                "Precio Promedio/Kg ($)": round(precio_promedio_kg, 2),
                 "Costo Producción ($)": v.costo_historico,
                 "MARGEN ($)": margen
             })
