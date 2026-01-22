@@ -6,46 +6,35 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X } from 'lucide-react';
 
-// --- ICONOS DEL MAPA ---
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
 function App() {
-  // ✅ ENLACE A TU NUBE
   const API_URL = 'https://agronexo-backend.onrender.com/api'; 
 
-  const [seccion, setSeccion] = useState('MAPA'); // Arrancar en Mapa
+  const [seccion, setSeccion] = useState('MAPA'); 
   const [rol, setRol] = useState('PRODUCTOR'); 
   const [lotes, setLotes] = useState([]);
   const [animales, setAnimales] = useState([]);
-  
-  // Clima y Mapa
   const [clima, setClima] = useState(null);
   const [loteClimaNombre, setLoteClimaNombre] = useState('General');
   const [tempPos, setTempPos] = useState(null); 
-  
-  // Estados de Interfaz Móvil
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [menuAbierto, setMenuAbierto] = useState(false); // Menú lateral en móvil
-
-  // Modales
+  const [menuAbierto, setMenuAbierto] = useState(false); 
   const [showModalLote, setShowModalLote] = useState(false);
   const [showModalCosecha, setShowModalCosecha] = useState(false);
   const [showModalAnimal, setShowModalAnimal] = useState(false);
   const [showModalPesaje, setShowModalPesaje] = useState(false);
   const [showModalGasto, setShowModalGasto] = useState(false); 
   const [modoEdicion, setModoEdicion] = useState(null); 
-
-  // Formularios
   const [nuevoContrato, setNuevoContrato] = useState({ nombreLote: '', hectareas: '', propietario: '', tipo: 'APARCERIA', porcentaje: 0, lat: null, lng: null });
   const [nuevaCosecha, setNuevaCosecha] = useState({ lote_id: null, lote_nombre: '', kilos: '' });
   const [nuevoAnimal, setNuevoAnimal] = useState({ caravana: '', raza: 'Braford', categoria: 'Ternero', peso_inicial: '', fecha: '' });
   const [nuevoPesaje, setNuevoPesaje] = useState({ animal_id: null, caravana: '', kilos: '', fecha: '' });
   const [nuevoGasto, setNuevoGasto] = useState({ lote_id: null, animal_id: null, nombre_destino: '', concepto: '', monto: '', categoria: 'INSUMO', fecha: '' });
 
-  // Detectar cambio de tamaño de pantalla
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -55,23 +44,17 @@ function App() {
   const cargarTodo = () => {
     axios.get(`${API_URL}/liquidaciones`).then(res => {
         setLotes(res.data);
-        if (res.data.length > 0 && res.data[0].lat) {
-            cargarClima(res.data[0].lat, res.data[0].lng, res.data[0].lote);
-        } else {
-            cargarClima(-26.78, -60.85, 'Chaco (General)');
-        }
-    }).catch(err => console.error("Error conectando al servidor", err));
+        if (res.data.length > 0 && res.data[0].lat) cargarClima(res.data[0].lat, res.data[0].lng, res.data[0].lote);
+        else cargarClima(-26.78, -60.85, 'Chaco (General)');
+    }).catch(err => console.error("Error", err));
     axios.get(`${API_URL}/animales`).then(res => setAnimales(res.data));
   };
 
   const cargarClima = (lat, lng, nombreLote) => {
     if (!lat || !lng) return;
-    setClima(null);
-    setLoteClimaNombre(nombreLote);
+    setClima(null); setLoteClimaNombre(nombreLote);
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&daily=precipitation_sum&timezone=auto`;
-    axios.get(url).then(res => {
-        setClima({ temp: res.data.current_weather.temperature, wind: res.data.current_weather.windspeed, rain: res.data.daily.precipitation_sum[0] });
-    }).catch(e => console.log("Error clima", e));
+    axios.get(url).then(res => setClima({ temp: res.data.current_weather.temperature, wind: res.data.current_weather.windspeed, rain: res.data.daily.precipitation_sum[0] })).catch(e => console.log(e));
   };
 
   useEffect(() => { cargarTodo(); }, []);
@@ -79,32 +62,26 @@ function App() {
   function ClickEnMapa() { useMapEvents({ click(e) { setTempPos(e.latlng); }, }); return null; }
   const iniciarCargaDesdeMapa = () => { if (tempPos) { setModoEdicion(null); setNuevoContrato({ ...nuevoContrato, lat: tempPos.lat, lng: tempPos.lng }); setTempPos(null); setShowModalLote(true); } };
   const obtenerUbicacion = () => { if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((pos) => { setNuevoContrato({ ...nuevoContrato, lat: pos.coords.latitude, lng: pos.coords.longitude }); alert("📍 GPS Detectado"); }); } };
-  
-  // Navegación
-  const cambiarSeccion = (sec) => {
-      setSeccion(sec);
-      if (isMobile) setMenuAbierto(false); // Cerrar menú al elegir en celular
-  };
-
-  // CRUD y Guardados
+  const cambiarSeccion = (sec) => { setSeccion(sec); if (isMobile) setMenuAbierto(false); };
   const abrirNuevoLote = () => { setModoEdicion(null); setNuevoContrato({ nombreLote: '', hectareas: '', propietario: '', tipo: 'APARCERIA', porcentaje: 0, lat: null, lng: null }); setShowModalLote(true); };
   const abrirEditarLote = (item) => { setModoEdicion(item.lote_id); setNuevoContrato({ nombreLote: item.lote, hectareas: item.hectareas, propietario: item.propietario, tipo: item.tipo, porcentaje: item.porcentaje, lat: item.lat, lng: item.lng }); setShowModalLote(true); };
   const guardarContrato = (e) => { e.preventDefault(); const endpoint = modoEdicion ? `${API_URL}/editar_lote/${modoEdicion}` : `${API_URL}/nuevo_contrato`; const method = modoEdicion ? axios.put : axios.post; method(endpoint, nuevoContrato).then(() => { setShowModalLote(false); cargarTodo(); }); };
-  const eliminarLote = (id) => { if (window.confirm("¿Eliminar lote?")) axios.delete(`${API_URL}/eliminar_lote/${id}`).then(() => cargarTodo()); };
+  const eliminarLote = (id) => { if (window.confirm("¿Eliminar?")) axios.delete(`${API_URL}/eliminar_lote/${id}`).then(() => cargarTodo()); };
   const guardarCosecha = (e) => { e.preventDefault(); axios.post(`${API_URL}/nueva_cosecha`, { lote_id: nuevaCosecha.lote_id, kilos: nuevaCosecha.kilos }).then(() => { setShowModalCosecha(false); cargarTodo(); }); };
   const guardarAnimal = (e) => { e.preventDefault(); axios.post(`${API_URL}/nuevo_animal`, nuevoAnimal).then(() => { setShowModalAnimal(false); cargarTodo(); alert("Registrado"); }); };
   const guardarPesaje = (e) => { e.preventDefault(); axios.post(`${API_URL}/nuevo_pesaje`, { animal_id: nuevoPesaje.animal_id, kilos: nuevoPesaje.kilos, fecha: nuevoPesaje.fecha }).then(() => { setShowModalPesaje(false); cargarTodo(); }); };
   const guardarGasto = (e) => { e.preventDefault(); axios.post(`${API_URL}/nuevo_gasto`, nuevoGasto).then(() => { setShowModalGasto(false); cargarTodo(); alert("Gasto OK"); }); };
   const abrirGasto = (tipo, item) => { setNuevoGasto({ lote_id: tipo === 'LOTE' ? item.lote_id : null, animal_id: tipo === 'ANIMAL' ? item.id : null, nombre_destino: tipo === 'LOTE' ? item.lote : `RP: ${item.caravana}`, concepto: '', monto: '', categoria: 'INSUMO', fecha: '' }); setShowModalGasto(true); };
+  
   const COLORES_AGRO = ['#22c55e', '#9ca3af'];
 
-  // --- ESTILOS RESPONSIVE (Layout) ---
+  // --- ESTILOS RESPONSIVE MEJORADOS ---
   return (
     <div style={{ fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f1f5f9', minHeight: '100vh', display:'flex', flexDirection: 'column', overflow: 'hidden' }}>
       
-      {/* 1. BARRA SUPERIOR (Solo visible en Móvil) */}
+      {/* 1. BARRA SUPERIOR (MÓVIL) */}
       {isMobile && (
-          <div style={{background:'#0f172a', padding:'15px', color:'white', display:'flex', justifyContent:'space-between', alignItems:'center', zIndex:1100}}>
+          <div style={{background:'#0f172a', padding:'15px', color:'white', display:'flex', justifyContent:'space-between', alignItems:'center', zIndex:2000, height: '60px', position: 'relative'}}>
               <h2 style={{margin:0, color:'#4ade80', fontSize:'1.2rem'}}>AgroNexo ☁️</h2>
               <button onClick={() => setMenuAbierto(!menuAbierto)} style={{background:'transparent', border:'none', color:'white'}}>
                   {menuAbierto ? <X size={28}/> : <Menu size={28}/>}
@@ -112,6 +89,7 @@ function App() {
           </div>
       )}
 
+      {/* CONTENEDOR PRINCIPAL */}
       <div style={{display:'flex', flex:1, height:'100%', position:'relative'}}>
           
           {/* 2. SIDEBAR (Menú Lateral) */}
@@ -123,22 +101,19 @@ function App() {
               display:'flex', 
               flexDirection:'column', 
               gap:'10px', 
-              // En móvil es flotante (fixed), en PC es estático
-              position: isMobile ? 'absolute' : 'relative',
+              position: isMobile ? 'fixed' : 'relative', // Fixed en móvil para flotar sobre todo
               left: isMobile ? (menuAbierto ? 0 : '-100%') : 0,
-              top: 0,
-              height: '100%',
+              top: isMobile ? '60px' : 0, // Debajo de la barra en móvil
+              bottom: 0,
               transition: 'left 0.3s ease',
-              zIndex: 1000,
-              boxShadow: isMobile ? '2px 0 10px rgba(0,0,0,0.5)' : 'none'
+              zIndex: 1500,
+              boxShadow: isMobile ? '4px 0 15px rgba(0,0,0,0.5)' : 'none'
           }}>
             {!isMobile && <h2 style={{color:'#4ade80', marginBottom:'30px'}}>AgroNexo ☁️</h2>}
-            
             <button onClick={() => cambiarSeccion('MAPA')} style={{...btnMenu, background: seccion === 'MAPA' ? '#1e293b' : 'transparent'}}><MapPin size={20}/> Mapa General</button>
             <button onClick={() => cambiarSeccion('AGRICULTURA')} style={{...btnMenu, background: seccion === 'AGRICULTURA' ? '#1e293b' : 'transparent'}}><Sprout size={20}/> Agricultura</button>
             <button onClick={() => cambiarSeccion('GANADERIA')} style={{...btnMenu, background: seccion === 'GANADERIA' ? '#1e293b' : 'transparent'}}><Tractor size={20}/> Ganadería</button>
             
-            {/* Widget Clima en Sidebar */}
             <div style={{marginTop:'auto', background:'#1e293b', padding:'15px', borderRadius:'10px', border:'1px solid #334155'}}>
                 <small style={{color:'#94a3b8', display:'block', marginBottom:'5px', fontSize:'0.7rem'}}>CLIMA EN:</small>
                 <strong style={{color:'white', display:'block', marginBottom:'10px', fontSize:'0.9rem'}}>{loteClimaNombre}</strong>
@@ -147,14 +122,33 @@ function App() {
             <div style={{marginTop: '10px', borderTop:'1px solid #334155', paddingTop:'20px'}}> <button onClick={() => setRol(rol === 'PRODUCTOR' ? 'PROPIETARIO' : 'PRODUCTOR')} style={{...btnMenu, fontSize:'0.8rem', background:'#334155'}}><RefreshCw size={14}/> Modo: {rol}</button> </div>
           </div>
 
-          {/* 3. CONTENIDO PRINCIPAL */}
-          <div style={{flex:1, padding: isMobile ? '10px' : '20px', overflowY:'auto', background:'#f1f5f9', position:'relative', height: isMobile ? 'calc(100vh - 60px)' : '100vh'}}>
+          {/* 3. CONTENIDO PRINCIPAL (MAPA Y PANELES) */}
+          <div style={{
+              flex:1, 
+              // En móvil, si es mapa, quitamos el padding para que sea full screen
+              padding: (isMobile && seccion === 'MAPA') ? '0' : '20px', 
+              overflowY:'auto', 
+              background:'#f1f5f9', 
+              position:'relative', 
+              height: isMobile ? 'calc(100vh - 60px)' : '100vh'
+          }}>
             
-            {/* CAPA OSCURA CUANDO EL MENÚ ESTÁ ABIERTO EN MÓVIL */}
-            {isMobile && menuAbierto && <div onClick={()=>setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex:900}}></div>}
+            {/* Sombra para cerrar menú */}
+            {isMobile && menuAbierto && <div onClick={()=>setMenuAbierto(false)} style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex:1400}}></div>}
 
             {seccion === 'MAPA' ? (
-                <div style={{ width: '100%', height: '100%', minHeight: '500px', borderRadius: '15px', overflow: 'hidden', border: '2px solid #cbd5e1', position:'relative' }}>
+                // ⚠️ MAPA FULL SCREEN EN MÓVIL (Sin bordes ni márgenes)
+                <div style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    // Si es móvil, forzamos posición absoluta para llenar todo
+                    position: isMobile ? 'absolute' : 'relative',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    borderRadius: isMobile ? '0' : '15px', 
+                    overflow: 'hidden', 
+                    border: isMobile ? 'none' : '2px solid #cbd5e1',
+                    zIndex: 0
+                }}>
                     <style>{` .leaflet-container { height: 100% !important; width: 100% !important; } `}</style>
                     <MapContainer center={[-26.78, -60.85]} zoom={11} style={{ height: '100%', width: '100%' }}>
                         <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="Google Maps Satellite" />
@@ -192,9 +186,8 @@ function App() {
                 </>
             )}
 
-            {/* MODALES */}
+            {/* MODALES IGUALES */}
             {showModalLote && (<div style={modalBackdrop}><div style={modalContent}><h3>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3><form onSubmit={guardarContrato} style={formStyle}><label>Nombre:</label><input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/><label>Hectáreas:</label><input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS OK' : 'Usar GPS'}</button><label>Dueño:</label><input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/><div style={{display:'flex', gap:'10px'}}><select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select><input placeholder="%" type="number" value={nuevoContrato.porcentaje} onChange={e=>setNuevoContrato({...nuevoContrato, porcentaje:e.target.value})} style={{...inputStyle, width:'80px'}}/></div><button style={btnAzul}>{modoEdicion ? 'Guardar' : 'Crear'}</button><button type="button" onClick={()=>setShowModalLote(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-            {/* Otros modales iguales */}
             {showModalAnimal && (<div style={modalBackdrop}><div style={modalContent}><h3>Alta Animal</h3><form onSubmit={guardarAnimal} style={formStyle}><label style={{fontSize:'0.8rem'}}>Fecha Ingreso:</label><input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/><input placeholder="Caravana" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/><select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option></select><select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option></select><input placeholder="Peso Inicial" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/><button style={btnAzul}>Guardar</button><button type="button" onClick={()=>setShowModalAnimal(false)} style={btnGris}>Cancelar</button></form></div></div>)}
             {showModalCosecha && (<div style={modalBackdrop}><div style={modalContent}><h3>Cargar Camión</h3><form onSubmit={guardarCosecha} style={formStyle}><input type="number" placeholder="Kilos" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalCosecha(false)} style={btnGris}>Cancelar</button></form></div></div>)}
             {showModalPesaje && (<div style={modalBackdrop}><div style={modalContent}><h3>Pesar</h3><form onSubmit={guardarPesaje} style={formStyle}><input type="date" onChange={e=>setNuevoPesaje({...nuevoPesaje, fecha:e.target.value})} style={inputStyle}/><input type="number" placeholder="Kilos" onChange={e=>setNuevoPesaje({...nuevoPesaje, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalPesaje(false)} style={btnGris}>Cancelar</button></form></div></div>)}
