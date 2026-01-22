@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAx
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe } from 'lucide-react';
+import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X, FileDown, Activity, ArrowRightLeft, CheckSquare, Square, Banknote, Syringe, CloudLightning } from 'lucide-react';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -33,7 +33,8 @@ function App() {
   const [showModalDetalleAnimal, setShowModalDetalleAnimal] = useState(false);
   const [showModalMover, setShowModalMover] = useState(false); 
   const [showModalVenta, setShowModalVenta] = useState(false); 
-  const [showModalSanidad, setShowModalSanidad] = useState(false); // 🆕 MODAL SANIDAD
+  const [showModalSanidad, setShowModalSanidad] = useState(false); 
+  const [showModalLluvia, setShowModalLluvia] = useState(false); // 🆕 MODAL LLUVIA
   
   const [modoEdicion, setModoEdicion] = useState(null); 
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -49,7 +50,8 @@ function App() {
   
   const [datosDetalleAnimal, setDatosDetalleAnimal] = useState(null);
   const [datosVenta, setDatosVenta] = useState({ animal_id: null, fecha: '', comprador: '', kilos: '', precio: '' });
-  const [datosSanidad, setDatosSanidad] = useState({ lote_id: 'all', concepto: '', monto: '', fecha: '' }); // 🆕 DATOS SANIDAD
+  const [datosSanidad, setDatosSanidad] = useState({ lote_id: 'all', concepto: '', monto: '', fecha: '' });
+  const [nuevoRegistroLluvia, setNuevoRegistroLluvia] = useState({ lote_id: '', milimetros: '', fecha: '' }); // 🆕 DATOS LLUVIA
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -130,7 +132,6 @@ function App() {
       }).catch(() => alert("Error al registrar venta"));
   };
 
-  // 🆕 CONFIRMAR SANIDAD MASIVA
   const confirmarSanidad = (e) => {
       e.preventDefault();
       axios.post(`${API_URL}/gasto_masivo`, datosSanidad).then(res => {
@@ -139,6 +140,16 @@ function App() {
           cargarTodo();
       }).catch(err => alert(err.response?.data?.error || "Error al aplicar gasto"));
   };
+
+  // 🆕 CONFIRMAR LLUVIA
+  const guardarLluvia = (e) => {
+      e.preventDefault();
+      axios.post(`${API_URL}/registrar_lluvia`, nuevoRegistroLluvia).then(() => {
+          alert("Lluvia registrada 🌧️");
+          setShowModalLluvia(false);
+          cargarTodo();
+      }).catch(() => alert("Error al registrar lluvia"));
+  }
 
   const totalEstimado = (datosVenta.kilos && datosVenta.precio) 
       ? (parseFloat(datosVenta.kilos) * parseFloat(datosVenta.precio)).toLocaleString() 
@@ -186,6 +197,12 @@ function App() {
              <button onClick={() => cambiarSeccion('MAPA')} style={{...btnMenu, background: seccion === 'MAPA' ? '#1e293b' : 'transparent'}}><MapPin size={20}/> Mapa General</button>
              <button onClick={() => cambiarSeccion('AGRICULTURA')} style={{...btnMenu, background: seccion === 'AGRICULTURA' ? '#1e293b' : 'transparent'}}><Sprout size={20}/> Agricultura</button>
              <button onClick={() => cambiarSeccion('GANADERIA')} style={{...btnMenu, background: seccion === 'GANADERIA' ? '#1e293b' : 'transparent'}}><Tractor size={20}/> Ganadería</button>
+             
+             {/* 🆕 BOTÓN DE LLUVIA */}
+             <button onClick={() => setShowModalLluvia(true)} style={{...btnMenu, color:'#93c5fd'}}>
+                <CloudLightning size={20}/> Registrar Lluvia
+             </button>
+
              <button onClick={descargarExcel} style={{...btnMenu, marginTop:'10px', color:'#38bdf8'}}><FileDown size={20}/> Exportar Reporte</button>
 
              <div style={{marginTop:'auto', background:'#1e293b', padding:'15px', borderRadius:'10px', border:'1px solid #334155'}}>
@@ -210,7 +227,20 @@ function App() {
                           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="Google Maps Satellite" />
                           <ClickEnMapa />
                           {tempPos && <Marker position={tempPos}><Popup><div style={{textAlign:'center'}}><strong>¿Nuevo Lote?</strong><br/><button onClick={iniciarCargaDesdeMapa} style={{...btnAzul, padding:'5px', fontSize:'0.8rem'}}>✅ Crear</button></div></Popup></Marker>}
-                          {lotes.map(lote => ( lote.lat && ( <Marker key={lote.id} position={[lote.lat, lote.lng]} eventHandlers={{ click: () => cargarClima(lote.lat, lote.lng, lote.lote) }}> <Popup><div style={{textAlign:'center'}}><strong>{lote.lote}</strong><br/>{lote.hectareas} Has</div></Popup> </Marker> ) ))}
+                          {lotes.map(lote => ( 
+                              lote.lat && ( 
+                                <Marker key={lote.id} position={[lote.lat, lote.lng]} eventHandlers={{ click: () => cargarClima(lote.lat, lote.lng, lote.lote) }}> 
+                                    <Popup>
+                                        <div style={{textAlign:'center'}}>
+                                            <strong style={{fontSize:'1rem'}}>{lote.lote}</strong><br/>
+                                            {lote.hectareas} Has<br/>
+                                            {/* 🆕 MOSTRAR LLUVIA EN EL POPUP */}
+                                            <span style={{color:'#2563eb', fontWeight:'bold', display:'block', marginTop:'5px'}}>🌧️ {lote.lluvia_mes} mm (Mes)</span>
+                                        </div>
+                                    </Popup> 
+                                </Marker> 
+                              ) 
+                          ))}
                        </MapContainer>
                   </div>
               ) : (
@@ -220,7 +250,6 @@ function App() {
                             <div style={{display:'flex', gap:'10px'}}>
                                 {seccion === 'GANADERIA' && (
                                     <>
-                                        {/* 🆕 BOTÓN CAMPAÑA SANITARIA */}
                                         <button onClick={() => setShowModalSanidad(true)} style={{...btnOutline, width:'auto', borderColor:'#16a34a', color:'#16a34a'}}>
                                             <Syringe size={20}/> <span style={{display: isMobile ? 'none' : 'inline'}}>Sanidad</span>
                                         </button>
@@ -286,7 +315,34 @@ function App() {
 
               {/* MODALES */}
               
-              {/* MODAL SANIDAD MASIVA (NUEVO) */}
+              {/* 🆕 MODAL LLUVIA */}
+              {showModalLluvia && (
+                  <div style={modalBackdrop} onClick={()=>setShowModalLluvia(false)}>
+                      <div style={modalContent} onClick={e=>e.stopPropagation()}>
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                              <h3 style={{margin:0, color:'#2563eb'}}>Registrar Lluvia 🌧️</h3>
+                              <button onClick={()=>setShowModalLluvia(false)} style={btnIcon}><X size={24} color="#0f172a"/></button>
+                          </div>
+                          <form onSubmit={guardarLluvia} style={formStyle}>
+                              <label style={labelStyle}>Fecha:</label>
+                              <input type="date" value={nuevoRegistroLluvia.fecha} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, fecha:e.target.value})} style={inputStyle}/>
+                              
+                              <label style={labelStyle}>Lote / Campo:</label>
+                              <select style={inputStyle} value={nuevoRegistroLluvia.lote_id} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, lote_id:e.target.value})} required>
+                                  <option value="">-- Seleccionar --</option>
+                                  {lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}
+                              </select>
+
+                              <label style={labelStyle}>Milímetros (mm):</label>
+                              <input type="number" placeholder="Ej: 45" value={nuevoRegistroLluvia.milimetros} onChange={e=>setNuevoRegistroLluvia({...nuevoRegistroLluvia, milimetros:e.target.value})} style={inputStyle} required/>
+                              
+                              <button style={{...btnAzul, background:'#2563eb'}}>Guardar Lluvia</button>
+                          </form>
+                      </div>
+                  </div>
+              )}
+
+              {/* MODAL SANIDAD MASIVA */}
               {showModalSanidad && (
                   <div style={modalBackdrop} onClick={()=>setShowModalSanidad(false)}>
                       <div style={modalContent} onClick={e=>e.stopPropagation()}>
@@ -297,24 +353,17 @@ function App() {
                           <form onSubmit={confirmarSanidad} style={formStyle}>
                               <label style={labelStyle}>Fecha:</label>
                               <input type="date" value={datosSanidad.fecha} onChange={e=>setDatosSanidad({...datosSanidad, fecha:e.target.value})} style={inputStyle}/>
-                              
                               <label style={labelStyle}>Concepto / Tratamiento:</label>
                               <input placeholder="Ej: Vacuna Aftosa" value={datosSanidad.concepto} onChange={e=>setDatosSanidad({...datosSanidad, concepto:e.target.value})} style={inputStyle} required/>
-                              
                               <label style={labelStyle}>Aplicar a:</label>
                               <select style={inputStyle} value={datosSanidad.lote_id} onChange={e=>setDatosSanidad({...datosSanidad, lote_id:e.target.value})}>
                                   <option value="all">Todo el Rodeo</option>
                                   <option value="corral">Solo en Corral / Sin Lote</option>
                                   {lotes.map(l => <option key={l.id} value={l.lote_id}>{l.lote}</option>)}
                               </select>
-
                               <label style={labelStyle}>Costo TOTAL de la Campaña ($):</label>
                               <input type="number" placeholder="$ Total Gastado" value={datosSanidad.monto} onChange={e=>setDatosSanidad({...datosSanidad, monto:e.target.value})} style={inputStyle} required/>
-                              
-                              <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>
-                                  ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.
-                              </div>
-
+                              <div style={{background:'#f0fdf4', padding:'10px', borderRadius:'8px', fontSize:'0.85rem', color:'#166534', border:'1px solid #bbf7d0'}}>ℹ️ El sistema dividirá este monto entre todos los animales del grupo seleccionado.</div>
                               <button style={{...btnAzul, background:'#16a34a'}}>Aplicar Gasto Masivo</button>
                           </form>
                       </div>

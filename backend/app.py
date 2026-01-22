@@ -5,6 +5,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
+from sqlalchemy import extract # Necesario para filtrar por mes
 import traceback
 
 app = Flask(__name__)
@@ -80,6 +81,14 @@ class Venta(db.Model):
     precio_total = db.Column(db.Float)
     costo_historico = db.Column(db.Float)
 
+# 🆕 NUEVA TABLA: LLUVIAS
+class Lluvia(db.Model):
+    __tablename__ = 'lluvia'
+    id = db.Column(db.Integer, primary_key=True)
+    lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'))
+    milimetros = db.Column(db.Float)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+
 # --- RUTAS ---
 
 @app.route('/api/liquidaciones', methods=['GET'])
@@ -87,6 +96,11 @@ def obtener_liquidaciones():
     try:
         resultados = []
         contratos = ContratoCampo.query.all()
+        # Fechas para el cálculo de lluvia mensual
+        hoy = datetime.utcnow()
+        mes_actual = hoy.month
+        anio_actual = hoy.year
+
         for contrato in contratos:
             lote = Lote.query.get(contrato.lote_id)
             if not lote: continue 
@@ -100,13 +114,22 @@ def obtener_liquidaciones():
             gastos = Gasto.query.filter_by(lote_id=contrato.lote_id).all()
             total_gastos = sum(g.monto for g in gastos)
             cant_animales = Animal.query.filter_by(lote_actual_id=lote.id).count()
+            
+            # 🆕 CÁLCULO DE LLUVIA ACUMULADA DEL MES
+            lluvias_mes = Lluvia.query.filter_by(lote_id=lote.id).filter(
+                extract('month', Lluvia.fecha) == mes_actual,
+                extract('year', Lluvia.fecha) == anio_actual
+            ).all()
+            acumulado_lluvia = sum(l.milimetros for l in lluvias_mes)
+
             resultados.append({
                 "id": contrato.id, "lote_id": lote.id, "lote": lote.nombre,
                 "hectareas": lote.hectareas, "propietario": contrato.propietario,
                 "tipo": contrato.tipo, "porcentaje": contrato.porcentaje_dueno,
                 "total_cosechado": total_kilos, "kilos_propios": kilos_propios, 
                 "kilos_dueno": kilos_dueno, "total_gastos": total_gastos,
-                "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales
+                "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales,
+                "lluvia_mes": acumulado_lluvia # 🆕 Enviamos el dato al frontend
             })
         return jsonify(resultados)
     except Exception as e: return jsonify({"error": str(e)}), 500
@@ -143,58 +166,54 @@ def obtener_animales():
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 NUEVA RUTA: GASTO MASIVO (SANIDAD)
+# 🆕 REGISTRAR LLUVIA
+@app.route('/api/registrar_lluvia', methods=['POST'])
+def registrar_lluvia():
+    try:
+        d = request.json
+        fecha_lluvia = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha_lluvia = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+        
+        nueva_lluvia = Lluvia(
+            lote_id=d['lote_id'],
+            milimetros=float(d['milimetros']),
+            fecha=fecha_lluvia
+        )
+        db.session.add(nueva_lluvia)
+        db.session.commit()
+        return jsonify({"mensaje": "Lluvia registrada correctamente"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/api/gasto_masivo', methods=['POST'])
 def gasto_masivo():
     try:
         d = request.json
-        lote_id = d.get('lote_id') # Puede ser 'all' o un ID numérico
+        lote_id = d.get('lote_id')
         monto_total = float(d['monto'])
         concepto = d['concepto']
         fecha_gasto = datetime.utcnow()
         if d.get('fecha'):
             try: fecha_gasto = datetime.strptime(d['fecha'], '%Y-%m-%d')
             except: pass
-
-        # 1. Buscar a los destinatarios
         animales_destino = []
         todos = Animal.query.all()
-        
         for a in todos:
-            # Filtro 1: No aplicar a vendidos
             if Venta.query.filter_by(animal_id=a.id).first(): continue
-            
-            # Filtro 2: Ubicación
-            if lote_id == 'all':
-                animales_destino.append(a)
-            elif lote_id == 'corral': # Si elegimos "En Corral" (lote_actual_id es None)
-                if a.lote_actual_id is None:
-                    animales_destino.append(a)
-            else: # Lote específico
-                if a.lote_actual_id == int(lote_id):
-                    animales_destino.append(a)
-        
+            if lote_id == 'all': animales_destino.append(a)
+            elif lote_id == 'corral': 
+                if a.lote_actual_id is None: animales_destino.append(a)
+            else: 
+                if a.lote_actual_id == int(lote_id): animales_destino.append(a)
         count = len(animales_destino)
-        if count == 0:
-            return jsonify({"error": "No hay animales en ese destino para aplicar el gasto"}), 400
-
-        # 2. Dividir monto
+        if count == 0: return jsonify({"error": "No hay animales en ese destino"}), 400
         monto_individual = monto_total / count
-
-        # 3. Aplicar gasto
         for a in animales_destino:
-            nuevo_gasto = Gasto(
-                fecha=fecha_gasto,
-                concepto=f"{concepto} (Campaña)",
-                monto=monto_individual,
-                categoria="SANITARIO",
-                animal_id=a.id
-            )
+            nuevo_gasto = Gasto(fecha=fecha_gasto, concepto=f"{concepto} (Campaña)", monto=monto_individual, categoria="SANITARIO", animal_id=a.id)
             db.session.add(nuevo_gasto)
-        
         db.session.commit()
         return jsonify({"mensaje": f"Aplicado a {count} animales. ${round(monto_individual, 2)} c/u"})
-
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/registrar_venta', methods=['POST'])
@@ -209,14 +228,7 @@ def registrar_venta():
         gastos = Gasto.query.filter_by(animal_id=animal_id).all()
         total_costo = sum(g.monto for g in gastos)
         precio_total_recibido = float(d['precio'])
-        nueva_venta = Venta(
-            animal_id=animal_id,
-            fecha=fecha_venta,
-            comprador=d['comprador'],
-            kilos_venta=float(d['kilos']),
-            precio_total=precio_total_recibido,
-            costo_historico=total_costo
-        )
+        nueva_venta = Venta(animal_id=animal_id, fecha=fecha_venta, comprador=d['comprador'], kilos_venta=float(d['kilos']), precio_total=precio_total_recibido, costo_historico=total_costo)
         db.session.add(nueva_venta)
         animal = Animal.query.get(animal_id)
         animal.lote_actual_id = None
@@ -262,7 +274,10 @@ def exportar_excel():
             total_kilos = sum(cos.kilos_totales for cos in cosechas)
             gastos = Gasto.query.filter_by(lote_id=lote.id).all()
             total_gastos = sum(g.monto for g in gastos)
-            data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos })
+            # 🆕 Agregamos Lluvia al Excel también
+            lluvias = Lluvia.query.filter_by(lote_id=lote.id).all()
+            total_lluvia_historica = sum(l.milimetros for l in lluvias)
+            data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos, "Lluvia Historica (mm)": total_lluvia_historica })
 
         data_ganaderia = []
         animales = Animal.query.all()
@@ -285,18 +300,8 @@ def exportar_excel():
             caravana = a.caravana if a else "Desconocido"
             margen = v.precio_total - v.costo_historico
             precio_promedio_kg = 0
-            if v.kilos_venta and v.kilos_venta > 0:
-                precio_promedio_kg = v.precio_total / v.kilos_venta
-            data_ventas.append({
-                "Fecha Venta": v.fecha.strftime('%d/%m/%Y'),
-                "Caravana": caravana,
-                "Comprador": v.comprador,
-                "Kg Venta": v.kilos_venta,
-                "Precio Total ($)": v.precio_total,
-                "Precio Promedio/Kg ($)": round(precio_promedio_kg, 2),
-                "Costo Producción ($)": v.costo_historico,
-                "MARGEN ($)": margen
-            })
+            if v.kilos_venta and v.kilos_venta > 0: precio_promedio_kg = v.precio_total / v.kilos_venta
+            data_ventas.append({ "Fecha Venta": v.fecha.strftime('%d/%m/%Y'), "Caravana": caravana, "Comprador": v.comprador, "Kg Venta": v.kilos_venta, "Precio Total ($)": v.precio_total, "Precio Promedio/Kg ($)": round(precio_promedio_kg, 2), "Costo Producción ($)": v.costo_historico, "MARGEN ($)": margen })
 
         data_gastos = []
         todos_gastos = Gasto.query.all()
