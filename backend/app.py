@@ -70,6 +70,17 @@ class Gasto(db.Model):
     lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=True)
 
+# 🆕 NUEVA TABLA: VENTAS
+class Venta(db.Model):
+    __tablename__ = 'venta'
+    id = db.Column(db.Integer, primary_key=True)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'))
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    comprador = db.Column(db.String(100))
+    kilos_venta = db.Column(db.Float)
+    precio_total = db.Column(db.Float)
+    costo_historico = db.Column(db.Float) # Para guardar cuánto se gastó hasta el momento de la venta
+
 # --- RUTAS ---
 
 @app.route('/api/liquidaciones', methods=['GET'])
@@ -99,22 +110,24 @@ def obtener_liquidaciones():
                 "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales
             })
         return jsonify(resultados)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
-# ⚠️ MODIFICADO: Ahora devuelve dónde está el animal (nombre del lote)
+# ⚠️ MODIFICADO: Solo devuelve animales VIVOS (no vendidos)
 @app.route('/api/animales', methods=['GET'])
 def obtener_animales():
     try:
         lista = []
         todos = Animal.query.all()
         for vaca in todos:
+            # 🛑 Si ya está vendido, lo saltamos
+            vendido = Venta.query.filter_by(animal_id=vaca.id).first()
+            if vendido: continue
+
             pesajes = Peso.query.filter_by(animal_id=vaca.id).order_by(Peso.fecha.desc()).all()
             gastos = Gasto.query.filter_by(animal_id=vaca.id).all()
             total_gastos = sum(g.monto for g in gastos)
             peso_act = 0; gdp = 0; ult = "Sin datos"
             
-            # Ubicación actual
             ubicacion = "En Corral / Sin Lote"
             if vaca.lote_actual_id:
                 lote = Lote.query.get(vaca.lote_actual_id)
@@ -132,30 +145,59 @@ def obtener_animales():
                 "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza,
                 "categoria": vaca.categoria, "peso_actual": peso_act,
                 "gdp": round(gdp, 3), "ultimo_pesaje": ult, 
-                "costo_acumulado": total_gastos,
-                "ubicacion": ubicacion,
+                "costo_acumulado": total_gastos, "ubicacion": ubicacion,
                 "lote_actual_id": vaca.lote_actual_id
             })
         return jsonify(lista)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 NUEVA RUTA: MOVER HACIENDA (ROTACIÓN)
+# 🆕 REGISTRAR VENTA
+@app.route('/api/registrar_venta', methods=['POST'])
+def registrar_venta():
+    try:
+        d = request.json
+        animal_id = d['animal_id']
+        fecha_venta = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha_venta = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+            
+        # Calcular costos hasta hoy
+        gastos = Gasto.query.filter_by(animal_id=animal_id).all()
+        total_costo = sum(g.monto for g in gastos)
+        
+        nueva_venta = Venta(
+            animal_id=animal_id,
+            fecha=fecha_venta,
+            comprador=d['comprador'],
+            kilos_venta=float(d['kilos']),
+            precio_total=float(d['precio']),
+            costo_historico=total_costo
+        )
+        db.session.add(nueva_venta)
+        
+        # Desvinculamos al animal de cualquier lote (ya no come pasto)
+        animal = Animal.query.get(animal_id)
+        animal.lote_actual_id = None
+        
+        db.session.commit()
+        
+        margen = float(d['precio']) - total_costo
+        return jsonify({"mensaje": "Venta exitosa", "margen": margen})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/api/mover_hacienda', methods=['POST'])
 def mover_hacienda():
     try:
         d = request.json
-        lote_destino = d.get('lote_destino_id') # Puede ser None si van a corral
+        lote_destino = d.get('lote_destino_id')
         ids_animales = d.get('animales_ids', [])
-        
         for animal_id in ids_animales:
             animal = Animal.query.get(animal_id)
-            if animal:
-                animal.lote_actual_id = lote_destino
-        
+            if animal: animal.lote_actual_id = lote_destino
         db.session.commit()
         return jsonify({"mensaje": "Hacienda movida exitosamente"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/detalle_animal/<int:id>', methods=['GET'])
 def detalle_animal(id):
@@ -169,9 +211,11 @@ def detalle_animal(id):
         return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+# ⚠️ EXCEL ACTUALIZADO CON PESTAÑA VENTAS
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     try:
+        # Agro
         data_agro = []
         contratos = ContratoCampo.query.all()
         for c in contratos:
@@ -181,79 +225,85 @@ def exportar_excel():
             total_kilos = sum(cos.kilos_totales for cos in cosechas)
             gastos = Gasto.query.filter_by(lote_id=lote.id).all()
             total_gastos = sum(g.monto for g in gastos)
-            data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Tipo Contrato": c.tipo, "% Dueño": c.porcentaje_dueno, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos })
+            data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Propietario": c.propietario, "Total Cosechado (kg)": total_kilos, "Gastos Totales ($)": total_gastos })
 
+        # Ganadería Activa
         data_ganaderia = []
         animales = Animal.query.all()
         for a in animales:
+            # Si es vendido, NO va en esta lista
+            if Venta.query.filter_by(animal_id=a.id).first(): continue
+            
             pesajes = Peso.query.filter_by(animal_id=a.id).order_by(Peso.fecha.desc()).all()
             peso_actual = pesajes[0].kilos if pesajes else 0
             gastos_animal = Gasto.query.filter_by(animal_id=a.id).all()
             total_gastos_animal = sum(g.monto for g in gastos_animal)
-            # Buscar nombre lote
             ubic = "Corral"
             if a.lote_actual_id:
                 l = Lote.query.get(a.lote_actual_id)
                 if l: ubic = l.nombre
-            data_ganaderia.append({ "Caravana": a.caravana, "Raza": a.raza, "Categoría": a.categoria, "Fecha Ingreso": a.fecha_ingreso.strftime('%d/%m/%Y'), "Ubicación": ubic, "Peso Actual (kg)": peso_actual, "Costo Acumulado ($)": total_gastos_animal })
+            data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Ubicación": ubic, "Peso Actual (kg)": peso_actual, "Costo Acumulado ($)": total_gastos_animal })
 
-        data_gastos = []
-        todos_gastos = Gasto.query.all()
-        for g in todos_gastos:
-            destino = "General"
-            if g.lote_id: 
-                l = Lote.query.get(g.lote_id)
-                destino = f"Lote: {l.nombre}" if l else "Lote Eliminado"
-            elif g.animal_id:
-                a = Animal.query.get(g.animal_id)
-                destino = f"Animal: {a.caravana}" if a else "Animal Eliminado"
-            data_gastos.append({ "Fecha": g.fecha.strftime('%d/%m/%Y'), "Concepto": g.concepto, "Categoría": g.categoria, "Monto": g.monto, "Destino": destino })
+        # 🆕 REPORTE DE VENTAS (CIERRE DE NEGOCIO)
+        data_ventas = []
+        ventas = Venta.query.all()
+        for v in ventas:
+            a = Animal.query.get(v.animal_id)
+            caravana = a.caravana if a else "Desconocido"
+            margen = v.precio_total - v.costo_historico
+            data_ventas.append({
+                "Fecha Venta": v.fecha.strftime('%d/%m/%Y'),
+                "Caravana": caravana,
+                "Comprador": v.comprador,
+                "Kg Venta": v.kilos_venta,
+                "Precio Venta ($)": v.precio_total,
+                "Costo Producción ($)": v.costo_historico,
+                "MARGEN ($)": margen
+            })
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             pd.DataFrame(data_agro).to_excel(writer, sheet_name='Agricultura', index=False)
-            pd.DataFrame(data_ganaderia).to_excel(writer, sheet_name='Ganadería', index=False)
-            pd.DataFrame(data_gastos).to_excel(writer, sheet_name='Detalle Gastos', index=False)
+            pd.DataFrame(data_ganaderia).to_excel(writer, sheet_name='Stock Activo', index=False)
+            pd.DataFrame(data_ventas).to_excel(writer, sheet_name='Ventas y Margenes', index=False)
         output.seek(0)
         return send_file(output, download_name="Reporte_AgroNexo.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# --- RESTO DE RUTAS CRUD (Sin cambios mayores) ---
+# --- CRUD BÁSICO ---
 @app.route('/api/nuevo_contrato', methods=['POST'])
 def crear_contrato():
+    d = request.json
     try:
-        d = request.json
         has = float(d['hectareas']) if d['hectareas'] else 0.0
         porc = float(d['porcentaje']) if d['porcentaje'] else 0.0
         lat = float(d['lat']) if d.get('lat') else None
         lng = float(d['lng']) if d.get('lng') else None
         nl = Lote(nombre=d['nombreLote'], hectareas=has, latitud=lat, longitud=lng)
-        db.session.add(nl)
-        db.session.commit()
+        db.session.add(nl); db.session.commit()
         nc = ContratoCampo(lote_id=nl.id, propietario=d['propietario'], tipo=d['tipo'], porcentaje_dueno=porc)
-        db.session.add(nc)
-        db.session.commit()
+        db.session.add(nc); db.session.commit()
         return jsonify({"mensaje": "Guardado"}), 201
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
 def editar_lote(lote_id):
+    d = request.json
     try:
-        d = request.json
         lote = Lote.query.get(lote_id)
         if not lote: return jsonify({"error": "No existe"}), 404
         lote.nombre = d['nombreLote']
         lote.hectareas = float(d['hectareas'])
         if d.get('lat'): lote.latitud = float(d['lat'])
         if d.get('lng'): lote.longitud = float(d['lng'])
-        contrato = ContratoCampo.query.filter_by(lote_id=lote.id).first()
-        if contrato:
-            contrato.propietario = d['propietario']
-            contrato.tipo = d['tipo']
-            contrato.porcentaje_dueno = float(d['porcentaje'])
+        c = ContratoCampo.query.filter_by(lote_id=lote.id).first()
+        if c:
+            c.propietario = d['propietario']
+            c.tipo = d['tipo']
+            c.porcentaje_dueno = float(d['porcentaje'])
         db.session.commit()
         return jsonify({"mensaje": "Actualizado"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    except: return jsonify({"error": "Error"}), 500
 
 @app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
 def eliminar_lote(lote_id):
@@ -266,7 +316,7 @@ def eliminar_lote(lote_id):
         Lote.query.filter_by(id=lote_id).delete()
         db.session.commit()
         return jsonify({"mensaje": "Eliminado"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    except: return jsonify({"error": "Error"}), 500
 
 @app.route('/api/nuevo_animal', methods=['POST'])
 def nuevo_animal():
@@ -276,8 +326,7 @@ def nuevo_animal():
         try: fi = datetime.strptime(d['fecha'], '%Y-%m-%d')
         except: pass
     animal = Animal(caravana=d['caravana'], raza=d['raza'], categoria=d['categoria'], fecha_ingreso=fi)
-    db.session.add(animal)
-    db.session.commit()
+    db.session.add(animal); db.session.commit()
     if d['peso_inicial']:
         db.session.add(Peso(animal_id=animal.id, kilos=float(d['peso_inicial']), fecha=fi))
         db.session.commit()
@@ -290,15 +339,13 @@ def nuevo_pesaje():
     if 'fecha' in d and d['fecha']:
         try: fr = datetime.strptime(d['fecha'], '%Y-%m-%d')
         except: pass
-    db.session.add(Peso(animal_id=d['animal_id'], kilos=float(d['kilos']), fecha=fr))
-    db.session.commit()
+    db.session.add(Peso(animal_id=d['animal_id'], kilos=float(d['kilos']), fecha=fr)); db.session.commit()
     return jsonify({"mensaje": "Registrado"}), 201
 
 @app.route('/api/nueva_cosecha', methods=['POST'])
 def nueva_cosecha():
     d = request.json
-    db.session.add(Cosecha(lote_id=d['lote_id'], kilos_totales=float(d['kilos'])))
-    db.session.commit()
+    db.session.add(Cosecha(lote_id=d['lote_id'], kilos_totales=float(d['kilos']))); db.session.commit()
     return jsonify({"mensaje": "Carga Guardada"}), 201
 
 @app.route('/api/nuevo_gasto', methods=['POST'])
@@ -311,13 +358,8 @@ def nuevo_gasto():
     lid = d.get('lote_id')
     aid = d.get('animal_id')
     gasto = Gasto(fecha=fr, concepto=d['concepto'], monto=float(d['monto']), categoria=d['categoria'], lote_id=lid, animal_id=aid)
-    db.session.add(gasto)
-    db.session.commit()
+    db.session.add(gasto); db.session.commit()
     return jsonify({"mensaje": "Gasto Guardado"}), 201
 
-# --- ARRANQUE ---
-with app.app_context():
-    db.create_all()
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+with app.app_context(): db.create_all()
+if __name__ == '__main__': app.run(debug=True, port=5000, host='0.0.0.0')
