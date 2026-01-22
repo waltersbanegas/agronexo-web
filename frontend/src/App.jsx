@@ -6,7 +6,6 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Tractor, PlusCircle, Truck, RefreshCw, Sprout, Scale, DollarSign, MapPin, Locate, Trash2, Edit, CloudRain, Wind, Thermometer, Map as MapIcon, Menu, X } from 'lucide-react';
 
-// --- ICONOS DEL MAPA ---
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
@@ -42,7 +41,6 @@ function App() {
   const [nuevoPesaje, setNuevoPesaje] = useState({ animal_id: null, caravana: '', kilos: '', fecha: '' });
   const [nuevoGasto, setNuevoGasto] = useState({ lote_id: null, animal_id: null, nombre_destino: '', concepto: '', monto: '', categoria: 'INSUMO', fecha: '' });
 
-  // Detectar cambio de tamaño de pantalla
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -71,7 +69,7 @@ function App() {
   const iniciarCargaDesdeMapa = () => { if (tempPos) { setModoEdicion(null); setNuevoContrato({ ...nuevoContrato, lat: tempPos.lat, lng: tempPos.lng }); setTempPos(null); setShowModalLote(true); } };
   const obtenerUbicacion = () => { if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((pos) => { setNuevoContrato({ ...nuevoContrato, lat: pos.coords.latitude, lng: pos.coords.longitude }); alert("📍 GPS Detectado"); }); } };
   
-  const cambiarSeccion = (sec) => { setSeccion(sec); setMenuAbierto(false); }; // Cerrar menú al navegar
+  const cambiarSeccion = (sec) => { setSeccion(sec); setMenuAbierto(false); }; 
 
   // CRUD
   const abrirNuevoLote = () => { setModoEdicion(null); setNuevoContrato({ nombreLote: '', hectareas: '', propietario: '', tipo: 'APARCERIA', porcentaje: 0, lat: null, lng: null }); setShowModalLote(true); };
@@ -86,11 +84,10 @@ function App() {
   
   const COLORES_AGRO = ['#22c55e', '#9ca3af'];
 
-  // --- ESTRUCTURA DE DISEÑO CORREGIDA ---
+  // --- INTERFAZ ---
   return (
     <div style={{ fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f1f5f9', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       
-      {/* 1. BARRA SUPERIOR (Solo visible en MÓVIL) */}
       {isMobile && (
           <div style={{height: '60px', background:'#0f172a', padding:'0 15px', color:'white', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink: 0, zIndex: 20}}>
               <h2 style={{margin:0, color:'#4ade80', fontSize:'1.2rem'}}>AgroNexo ☁️</h2>
@@ -100,24 +97,11 @@ function App() {
           </div>
       )}
 
-      {/* 2. CUERPO PRINCIPAL (Sidebar + Contenido) */}
       <div style={{display: 'flex', flex: 1, overflow: 'hidden', position: 'relative'}}>
           
-          {/* SIDEBAR */}
           <div style={{
-              width: '250px',
-              height: '100%',
-              background: '#0f172a',
-              color: 'white',
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '20px',
-              gap: '10px',
-              // COMPORTAMIENTO MÓVIL VS ESCRITORIO
-              position: isMobile ? 'absolute' : 'relative',
-              left: isMobile ? (menuAbierto ? 0 : '-100%') : 0,
-              zIndex: 30,
-              transition: 'left 0.3s ease',
+              width: '250px', height: '100%', background: '#0f172a', color: 'white', display: 'flex', flexDirection: 'column', padding: '20px', gap: '10px',
+              position: isMobile ? 'absolute' : 'relative', left: isMobile ? (menuAbierto ? 0 : '-100%') : 0, zIndex: 30, transition: 'left 0.3s ease',
               boxShadow: isMobile ? '2px 0 10px rgba(0,0,0,0.5)' : 'none'
           }}>
              {!isMobile && <h2 style={{color:'#4ade80', marginBottom:'30px'}}>AgroNexo ☁️</h2>}
@@ -132,16 +116,10 @@ function App() {
             </div>
           </div>
 
-          {/* CAPA NEGRA PARA CERRAR MENÚ EN MÓVIL */}
-          {isMobile && menuAbierto && (
-              <div onClick={() => setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex: 25}}></div>
-          )}
+          {isMobile && menuAbierto && (<div onClick={() => setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex: 25}}></div>)}
 
-          {/* CONTENIDO (MAPA O TARJETAS) */}
           <main style={{flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflowY: seccion === 'MAPA' ? 'hidden' : 'auto'}}>
-              
               {seccion === 'MAPA' ? (
-                  // MAPA FULL SCREEN
                   <div style={{flex: 1, width: '100%', height: '100%', zIndex: 1}}>
                        <style>{` .leaflet-container { height: 100% !important; width: 100% !important; } `}</style>
                        <MapContainer center={[-26.78, -60.85]} zoom={11} style={{ height: '100%', width: '100%' }}>
@@ -152,14 +130,12 @@ function App() {
                        </MapContainer>
                   </div>
               ) : (
-                  // PANELES DE DATOS (CON PADDING)
                   <div style={{padding: '20px', paddingBottom: '80px'}}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                             <h1 style={{color:'#1e293b', fontSize: isMobile ? '1.5rem' : '2rem'}}>{seccion === 'AGRICULTURA' ? 'Agricultura' : 'Ganadería'}</h1>
                             <button onClick={() => seccion === 'AGRICULTURA' ? abrirNuevoLote() : setShowModalAnimal(true)} style={btnAzul}><PlusCircle size={20}/> Nuevo</button>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                            {/* Tarjetas Agricultura */}
                             {seccion === 'AGRICULTURA' && lotes.map((item) => {
                                 let miParte = rol === 'PRODUCTOR' ? item.kilos_propios : item.kilos_dueno; let parteOtro = rol === 'PRODUCTOR' ? item.kilos_dueno : item.kilos_propios;
                                 return (
@@ -171,7 +147,6 @@ function App() {
                                     </div>
                                 )
                             })}
-                            {/* Tarjetas Ganadería */}
                             {seccion === 'GANADERIA' && animales.map((vaca) => (
                                 <div key={vaca.id} style={cardEstilo}>
                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}><h2 style={{margin:0, color:'#0f172a'}}>RP: {vaca.caravana}</h2><span style={{...tagEstilo, background:'#ecfccb', color:'#3f6212'}}>{vaca.raza}</span></div>
@@ -183,19 +158,99 @@ function App() {
                   </div>
               )}
 
-              {/* MODALES IGUALES */}
-              {showModalLote && (<div style={modalBackdrop}><div style={modalContent}><h3>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3><form onSubmit={guardarContrato} style={formStyle}><label>Nombre:</label><input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/><label>Hectáreas:</label><input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/><button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS OK' : 'Usar GPS'}</button><label>Dueño:</label><input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/><div style={{display:'flex', gap:'10px'}}><select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select><input placeholder="%" type="number" value={nuevoContrato.porcentaje} onChange={e=>setNuevoContrato({...nuevoContrato, porcentaje:e.target.value})} style={{...inputStyle, width:'80px'}}/></div><button style={btnAzul}>{modoEdicion ? 'Guardar' : 'Crear'}</button><button type="button" onClick={()=>setShowModalLote(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-              {showModalAnimal && (<div style={modalBackdrop}><div style={modalContent}><h3>Alta Animal</h3><form onSubmit={guardarAnimal} style={formStyle}><label style={{fontSize:'0.8rem'}}>Fecha Ingreso:</label><input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/><input placeholder="Caravana" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/><select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option></select><select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option></select><input placeholder="Peso Inicial" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/><button style={btnAzul}>Guardar</button><button type="button" onClick={()=>setShowModalAnimal(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-              {showModalCosecha && (<div style={modalBackdrop}><div style={modalContent}><h3>Cargar Camión</h3><form onSubmit={guardarCosecha} style={formStyle}><input type="number" placeholder="Kilos" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalCosecha(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-              {showModalPesaje && (<div style={modalBackdrop}><div style={modalContent}><h3>Pesar</h3><form onSubmit={guardarPesaje} style={formStyle}><input type="date" onChange={e=>setNuevoPesaje({...nuevoPesaje, fecha:e.target.value})} style={inputStyle}/><input type="number" placeholder="Kilos" onChange={e=>setNuevoPesaje({...nuevoPesaje, kilos:e.target.value})} style={inputStyle} autoFocus required/><button style={btnAzul}>Registrar</button><button type="button" onClick={()=>setShowModalPesaje(false)} style={btnGris}>Cancelar</button></form></div></div>)}
-              {showModalGasto && (<div style={modalBackdrop}><div style={modalContent}><h3 style={{color:'#dc2626'}}>💸 Nuevo Gasto</h3><form onSubmit={guardarGasto} style={formStyle}><input type="date" onChange={e=>setNuevoGasto({...nuevoGasto, fecha:e.target.value})} style={inputStyle}/><input placeholder="Concepto" onChange={e=>setNuevoGasto({...nuevoGasto, concepto:e.target.value})} style={inputStyle} autoFocus required/><input type="number" placeholder="Monto ($)" onChange={e=>setNuevoGasto({...nuevoGasto, monto:e.target.value})} style={inputStyle} required/><select onChange={e=>setNuevoGasto({...nuevoGasto, categoria:e.target.value})} style={inputStyle}><option value="INSUMO">Insumo</option><option value="LABOR">Labor</option><option value="SANITARIO">Sanitario</option></select><button style={{...btnAzul, background:'#dc2626'}}>Registrar</button><button type="button" onClick={()=>setShowModalGasto(false)} style={btnGris}>Cancelar</button></form></div></div>)}
+              {/* MODALES ARREGLADOS CON ETIQUETAS VISIBLES */}
+              {showModalLote && (<div style={modalBackdrop}><div style={modalContent}>
+                  <h3>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3>
+                  <form onSubmit={guardarContrato} style={formStyle}>
+                      <label style={labelStyle}>Nombre del Lote:</label>
+                      <input value={nuevoContrato.nombreLote} onChange={e=>setNuevoContrato({...nuevoContrato, nombreLote:e.target.value})} style={inputStyle} required/>
+                      
+                      <label style={labelStyle}>Hectáreas:</label>
+                      <input type="number" value={nuevoContrato.hectareas} onChange={e=>setNuevoContrato({...nuevoContrato, hectareas:e.target.value})} style={inputStyle} required/>
+                      
+                      <button type="button" onClick={obtenerUbicacion} style={{...btnGris, background:'#0f172a', color:'white', justifyContent:'center'}}><Locate size={18}/> {nuevoContrato.lat ? 'GPS Detectado' : 'Usar mi GPS'}</button>
+                      
+                      <label style={labelStyle}>Dueño / Contraparte:</label>
+                      <input value={nuevoContrato.propietario} onChange={e=>setNuevoContrato({...nuevoContrato, propietario:e.target.value})} style={inputStyle} required/>
+                      
+                      <label style={labelStyle}>Tipo de Contrato:</label>
+                      <div style={{display:'flex', gap:'10px'}}>
+                          <select value={nuevoContrato.tipo} onChange={e=>setNuevoContrato({...nuevoContrato, tipo:e.target.value})} style={{...inputStyle, flex:1}}><option value="APARCERIA">Aparcería</option><option value="PROPIO">Propio</option></select>
+                          <input placeholder="%" type="number" value={nuevoContrato.porcentaje} onChange={e=>setNuevoContrato({...nuevoContrato, porcentaje:e.target.value})} style={{...inputStyle, width:'80px'}}/>
+                      </div>
+                      <button style={btnAzul}>{modoEdicion ? 'Guardar Cambios' : 'Crear Lote'}</button>
+                      <button type="button" onClick={()=>setShowModalLote(false)} style={btnGris}>Cancelar</button>
+                  </form>
+              </div></div>)}
+
+              {showModalAnimal && (<div style={modalBackdrop}><div style={modalContent}>
+                  <h3>Alta Animal</h3>
+                  <form onSubmit={guardarAnimal} style={formStyle}>
+                      <label style={labelStyle}>Fecha Ingreso:</label>
+                      <input type="date" onChange={e=>setNuevoAnimal({...nuevoAnimal, fecha:e.target.value})} style={inputStyle}/>
+                      
+                      <label style={labelStyle}>Caravana (ID):</label>
+                      <input placeholder="Ej: A-001" onChange={e=>setNuevoAnimal({...nuevoAnimal, caravana:e.target.value})} style={inputStyle} required/>
+                      
+                      <label style={labelStyle}>Raza:</label>
+                      <select onChange={e=>setNuevoAnimal({...nuevoAnimal, raza:e.target.value})} style={inputStyle}><option>Braford</option><option>Brangus</option><option>Angus</option></select>
+                      
+                      <label style={labelStyle}>Categoría:</label>
+                      <select onChange={e=>setNuevoAnimal({...nuevoAnimal, categoria:e.target.value})} style={inputStyle}><option>Ternero</option><option>Novillo</option><option>Vaca</option></select>
+                      
+                      <label style={labelStyle}>Peso Inicial (Kg):</label>
+                      <input placeholder="Kilos" type="number" onChange={e=>setNuevoAnimal({...nuevoAnimal, peso_inicial:e.target.value})} style={inputStyle}/>
+                      
+                      <button style={btnAzul}>Guardar</button>
+                      <button type="button" onClick={()=>setShowModalAnimal(false)} style={btnGris}>Cancelar</button>
+                  </form>
+              </div></div>)}
+
+              {showModalCosecha && (<div style={modalBackdrop}><div style={modalContent}>
+                  <h3>Cargar Camión</h3>
+                  <form onSubmit={guardarCosecha} style={formStyle}>
+                      <label style={labelStyle}>Kilos Totales:</label>
+                      <input type="number" placeholder="Kilos" onChange={e=>setNuevaCosecha({...nuevaCosecha, kilos:e.target.value})} style={inputStyle} autoFocus required/>
+                      <button style={btnAzul}>Registrar Carga</button>
+                      <button type="button" onClick={()=>setShowModalCosecha(false)} style={btnGris}>Cancelar</button>
+                  </form>
+              </div></div>)}
+
+              {showModalPesaje && (<div style={modalBackdrop}><div style={modalContent}>
+                  <h3>Nuevo Pesaje</h3>
+                  <form onSubmit={guardarPesaje} style={formStyle}>
+                      <label style={labelStyle}>Fecha:</label>
+                      <input type="date" onChange={e=>setNuevoPesaje({...nuevoPesaje, fecha:e.target.value})} style={inputStyle}/>
+                      <label style={labelStyle}>Kilos:</label>
+                      <input type="number" placeholder="Kilos" onChange={e=>setNuevoPesaje({...nuevoPesaje, kilos:e.target.value})} style={inputStyle} autoFocus required/>
+                      <button style={btnAzul}>Registrar Peso</button>
+                      <button type="button" onClick={()=>setShowModalPesaje(false)} style={btnGris}>Cancelar</button>
+                  </form>
+              </div></div>)}
+
+              {showModalGasto && (<div style={modalBackdrop}><div style={modalContent}>
+                  <h3 style={{color:'#dc2626'}}>💸 Nuevo Gasto</h3>
+                  <form onSubmit={guardarGasto} style={formStyle}>
+                      <label style={labelStyle}>Fecha:</label>
+                      <input type="date" onChange={e=>setNuevoGasto({...nuevoGasto, fecha:e.target.value})} style={inputStyle}/>
+                      <label style={labelStyle}>Concepto:</label>
+                      <input placeholder="Ej: Semillas, Vacuna" onChange={e=>setNuevoGasto({...nuevoGasto, concepto:e.target.value})} style={inputStyle} autoFocus required/>
+                      <label style={labelStyle}>Monto ($):</label>
+                      <input type="number" placeholder="Monto ($)" onChange={e=>setNuevoGasto({...nuevoGasto, monto:e.target.value})} style={inputStyle} required/>
+                      <label style={labelStyle}>Categoría:</label>
+                      <select onChange={e=>setNuevoGasto({...nuevoGasto, categoria:e.target.value})} style={inputStyle}><option value="INSUMO">Insumo</option><option value="LABOR">Labor</option><option value="SANITARIO">Sanitario</option></select>
+                      <button style={{...btnAzul, background:'#dc2626'}}>Registrar Gasto</button>
+                      <button type="button" onClick={()=>setShowModalGasto(false)} style={btnGris}>Cancelar</button>
+                  </form>
+              </div></div>)}
+              
           </main>
       </div>
     </div>
   );
 }
 
-// Estilos
+// Estilos Corregidos
 const btnMenu = { width:'100%', padding:'10px', border:'none', color:'white', textAlign:'left', cursor:'pointer', display:'flex', gap:'10px', alignItems:'center', borderRadius:'8px' };
 const btnAzul = { background: '#2563eb', color:'white', border:'none', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', display:'flex', gap:'5px', fontWeight:'bold' };
 const btnGris = { background: '#94a3b8', color:'white', border:'none', padding:'10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' };
@@ -207,6 +262,9 @@ const sinDatos = { height:'100%', display:'flex', alignItems:'center', justifyCo
 const modalBackdrop = { position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000 };
 const modalContent = { background:'white', padding:'30px', borderRadius:'15px', width:'90%', maxWidth:'400px', maxHeight: '90vh', overflowY: 'auto' };
 const formStyle = { display:'flex', flexDirection:'column', gap:'10px', marginTop:'20px' };
-const inputStyle = { padding:'12px', borderRadius:'8px', border:'1px solid #cbd5e1' };
+
+// ⚠️ CORRECCIÓN DE COLORES EN INPUTS Y LABELS
+const inputStyle = { padding:'12px', borderRadius:'8px', border:'1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', width: '100%', boxSizing: 'border-box' };
+const labelStyle = { display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#334155', fontSize: '0.9rem' };
 
 export default App;
