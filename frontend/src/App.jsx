@@ -114,6 +114,14 @@ function App() {
                 <strong style={{color:'white', display:'block', marginBottom:'10px', fontSize:'0.9rem'}}>{loteClimaNombre}</strong>
                 {clima ? ( <> <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><Thermometer size={18} color="#fcd34d"/> <span style={{fontSize:'1.1rem', fontWeight:'bold'}}>{clima.temp}°C</span></div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#94a3b8'}}><Wind size={16}/> {clima.wind} km/h</div><div style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'0.9rem', color:'#60a5fa', marginTop:'5px'}}><CloudRain size={16}/> {clima.rain} mm</div> </> ) : <span style={{color:'#64748b', fontSize:'0.8rem'}}>Cargando...</span>}
             </div>
+
+            {/* ✅ AQUÍ ESTÁ EL BOTÓN DE MODO (RECUPERADO) */}
+            <div style={{marginTop: '10px', borderTop:'1px solid #334155', paddingTop:'20px'}}>
+                 <button onClick={() => setRol(rol === 'PRODUCTOR' ? 'PROPIETARIO' : 'PRODUCTOR')} style={{...btnMenu, fontSize:'0.8rem', background:'#334155'}}>
+                    <RefreshCw size={14}/> Modo: {rol}
+                 </button>
+            </div>
+
           </div>
 
           {isMobile && menuAbierto && (<div onClick={() => setMenuAbierto(false)} style={{position:'absolute', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', zIndex: 25}}></div>)}
@@ -158,7 +166,7 @@ function App() {
                   </div>
               )}
 
-              {/* MODALES ARREGLADOS CON ETIQUETAS VISIBLES */}
+              {/* MODALES */}
               {showModalLote && (<div style={modalBackdrop}><div style={modalContent}>
                   <h3>{modoEdicion ? 'Editar Lote' : 'Nuevo Lote'}</h3>
                   <form onSubmit={guardarContrato} style={formStyle}>
@@ -250,7 +258,7 @@ function App() {
   );
 }
 
-// Estilos Corregidos
+// Estilos
 const btnMenu = { width:'100%', padding:'10px', border:'none', color:'white', textAlign:'left', cursor:'pointer', display:'flex', gap:'10px', alignItems:'center', borderRadius:'8px' };
 const btnAzul = { background: '#2563eb', color:'white', border:'none', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', display:'flex', gap:'5px', fontWeight:'bold' };
 const btnGris = { background: '#94a3b8', color:'white', border:'none', padding:'10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' };
@@ -262,8 +270,6 @@ const sinDatos = { height:'100%', display:'flex', alignItems:'center', justifyCo
 const modalBackdrop = { position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000 };
 const modalContent = { background:'white', padding:'30px', borderRadius:'15px', width:'90%', maxWidth:'400px', maxHeight: '90vh', overflowY: 'auto' };
 const formStyle = { display:'flex', flexDirection:'column', gap:'10px', marginTop:'20px' };
-
-// ⚠️ CORRECCIÓN DE COLORES EN INPUTS Y LABELS
 const inputStyle = { padding:'12px', borderRadius:'8px', border:'1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', width: '100%', boxSizing: 'border-box' };
 const labelStyle = { display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#334155', fontSize: '0.9rem' };
 
