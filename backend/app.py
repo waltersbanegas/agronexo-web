@@ -38,24 +38,25 @@ class ContratoCampo(db.Model):
     tipo = db.Column(db.String(50)) 
     porcentaje_dueno = db.Column(db.Float)
 
-# 🆕 MODIFICADO: COSECHA AHORA TIENE DESTINO
 class Cosecha(db.Model):
     __tablename__ = 'cosecha'
     id = db.Column(db.Integer, primary_key=True)
     lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'))
     kilos_totales = db.Column(db.Float)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
-    destino = db.Column(db.String(50)) # 'VENTA' o 'SILO'
+    destino = db.Column(db.String(50))
     silo_id = db.Column(db.Integer, db.ForeignKey('silo.id'), nullable=True)
 
 class Animal(db.Model):
     __tablename__ = 'animal'
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(20), unique=True)
-    categoria = db.Column(db.String(50))
+    categoria = db.Column(db.String(50)) # Vaca, Toro, Novillo, etc.
     raza = db.Column(db.String(50))
     fecha_ingreso = db.Column(db.DateTime, default=datetime.utcnow)
     lote_actual_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
+    # 🆕 NUEVO CAMPO: ESTADO REPRODUCTIVO (Solo para Vacas/Vaquillonas)
+    estado_reproductivo = db.Column(db.String(50), default='VACIA') # VACIA, INSEMINADA, PREÑADA
 
 class Peso(db.Model):
     __tablename__ = 'peso'
@@ -74,7 +75,6 @@ class Gasto(db.Model):
     lote_id = db.Column(db.Integer, db.ForeignKey('lote.id'), nullable=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=True)
 
-# VENTA HACIENDA
 class Venta(db.Model):
     __tablename__ = 'venta'
     id = db.Column(db.Integer, primary_key=True)
@@ -92,13 +92,12 @@ class Lluvia(db.Model):
     milimetros = db.Column(db.Float)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 🆕 NUEVOS MODELOS: SILO Y VENTA DE GRANO
 class Silo(db.Model):
     __tablename__ = 'silo'
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(50)) # Ej: "Silobolsa Soja 1"
-    tipo = db.Column(db.String(50)) # "SILOBOLSA", "CELDA", "SILO FIJO"
-    contenido = db.Column(db.String(50)) # "SOJA", "MAIZ", "GIRASOL"
+    nombre = db.Column(db.String(50))
+    tipo = db.Column(db.String(50))
+    contenido = db.Column(db.String(50))
     capacidad = db.Column(db.Float)
     kilos_actuales = db.Column(db.Float, default=0.0)
     latitud = db.Column(db.Float, nullable=True)
@@ -112,8 +111,17 @@ class VentaGrano(db.Model):
     tipo_grano = db.Column(db.String(50))
     kilos = db.Column(db.Float)
     precio_total = db.Column(db.Float)
-    origen = db.Column(db.String(50)) # 'COSECHA_DIRECTA' o 'SILO'
+    origen = db.Column(db.String(50))
     silo_id = db.Column(db.Integer, db.ForeignKey('silo.id'), nullable=True)
+
+# 🆕 NUEVA TABLA: EVENTOS REPRODUCTIVOS
+class EventoReproductivo(db.Model):
+    __tablename__ = 'evento_reproductivo'
+    id = db.Column(db.Integer, primary_key=True)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'))
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    tipo = db.Column(db.String(50)) # INSEMINACION, TACTO, PARTO
+    detalle = db.Column(db.String(100)) # Ej: "Toro 001", "Positivo", "Macho"
 
 # --- RUTAS ---
 
@@ -123,118 +131,23 @@ def resumen_general():
         hoy = datetime.utcnow()
         mes_actual = hoy.month
         anio_actual = hoy.year
-
-        # 1. Ganadería
         subquery_vendidos = db.session.query(Venta.animal_id)
         total_cabezas = db.session.query(Animal).filter(Animal.id.notin_(subquery_vendidos)).count()
-
-        # 2. Agricultura
         total_hectareas = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
-        
-        # 🆕 STOCK DE GRANOS (Suma de todos los silos)
         total_grano_acopiado = db.session.query(func.sum(Silo.kilos_actuales)).scalar() or 0
-
-        # 3. Finanzas
-        gastos_mes = db.session.query(func.sum(Gasto.monto)).filter(
-            extract('month', Gasto.fecha) == mes_actual,
-            extract('year', Gasto.fecha) == anio_actual
-        ).scalar() or 0
-
-        # Margen Hacienda
+        gastos_mes = db.session.query(func.sum(Gasto.monto)).filter(extract('month', Gasto.fecha) == mes_actual, extract('year', Gasto.fecha) == anio_actual).scalar() or 0
         ventas_hacienda = Venta.query.filter(extract('month', Venta.fecha) == mes_actual, extract('year', Venta.fecha) == anio_actual).all()
         margen_hacienda = sum((v.precio_total - v.costo_historico) for v in ventas_hacienda)
-        
-        # 🆕 Sumar Ventas de Grano al flujo de caja (Ingreso bruto por ahora)
-        ventas_grano = db.session.query(func.sum(VentaGrano.precio_total)).filter(
-            extract('month', VentaGrano.fecha) == mes_actual,
-            extract('year', VentaGrano.fecha) == anio_actual
-        ).scalar() or 0
-
-        # 4. Lluvia
+        ventas_grano = db.session.query(func.sum(VentaGrano.precio_total)).filter(extract('month', VentaGrano.fecha) == mes_actual, extract('year', VentaGrano.fecha) == anio_actual).scalar() or 0
         lotes = Lote.query.all()
         sumas_lotes = []
         for l in lotes:
             suma = db.session.query(func.sum(Lluvia.milimetros)).filter(Lluvia.lote_id == l.id, extract('month', Lluvia.fecha) == mes_actual, extract('year', Lluvia.fecha) == anio_actual).scalar() or 0
             if suma > 0: sumas_lotes.append(suma)
         lluvia_promedio = sum(sumas_lotes) / len(sumas_lotes) if len(sumas_lotes) > 0 else 0
-
-        return jsonify({
-            "cabezas": total_cabezas,
-            "hectareas": round(total_hectareas, 1),
-            "stock_granos": round(total_grano_acopiado, 0), # 🆕
-            "gastos_mes": round(gastos_mes, 2),
-            "margen_mes": round(margen_hacienda + ventas_grano, 2), # Margen H + Venta G
-            "lluvia_mes": round(lluvia_promedio, 1)
-        })
+        return jsonify({ "cabezas": total_cabezas, "hectareas": round(total_hectareas, 1), "stock_granos": round(total_grano_acopiado, 0), "gastos_mes": round(gastos_mes, 2), "margen_mes": round(margen_hacienda + ventas_grano, 2), "lluvia_mes": round(lluvia_promedio, 1) })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# 🆕 RUTAS PARA SILOS Y LOGÍSTICA
-@app.route('/api/silos', methods=['GET'])
-def obtener_silos():
-    silos = Silo.query.all()
-    return jsonify([{
-        "id": s.id, "nombre": s.nombre, "tipo": s.tipo, 
-        "contenido": s.contenido, "capacidad": s.capacidad, 
-        "kilos_actuales": s.kilos_actuales, 
-        "lat": s.latitud, "lng": s.longitud
-    } for s in silos])
-
-@app.route('/api/nuevo_silo', methods=['POST'])
-def nuevo_silo():
-    d = request.json
-    lat = float(d['lat']) if d.get('lat') else None
-    lng = float(d['lng']) if d.get('lng') else None
-    nuevo = Silo(nombre=d['nombre'], tipo=d['tipo'], contenido=d['contenido'], capacidad=float(d['capacidad']), latitud=lat, longitud=lng)
-    db.session.add(nuevo)
-    db.session.commit()
-    return jsonify({"mensaje": "Silo creado"}), 201
-
-@app.route('/api/nueva_cosecha', methods=['POST'])
-def nueva_cosecha():
-    try:
-        d = request.json
-        kilos = float(d['kilos'])
-        destino = d.get('destino', 'VENTA') # VENTA o SILO
-        silo_id = d.get('silo_id') # ID si va a silo
-
-        # Registrar el evento cosecha
-        nueva = Cosecha(lote_id=d['lote_id'], kilos_totales=kilos, destino=destino, silo_id=silo_id)
-        db.session.add(nueva)
-
-        # Si va a Silo, aumentar stock
-        if destino == 'SILO' and silo_id:
-            silo = Silo.query.get(silo_id)
-            if silo:
-                silo.kilos_actuales += kilos
-        
-        # Si es Venta Directa, podríamos registrar venta automatica, pero mejor dejar que el usuario la registre en "Venta Grano" para poner precio.
-        
-        db.session.commit()
-        return jsonify({"mensaje": "Cosecha registrada"}), 201
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/venta_grano', methods=['POST'])
-def venta_grano():
-    try:
-        d = request.json
-        kilos = float(d['kilos'])
-        precio_total = float(d['precio_total'])
-        origen = d['origen'] # 'SILO' o 'DIRECTA' (Directa no descuenta stock)
-        silo_id = d.get('silo_id')
-
-        if origen == 'SILO' and silo_id:
-            silo = Silo.query.get(silo_id)
-            if not silo: return jsonify({"error": "Silo no encontrado"}), 404
-            if silo.kilos_actuales < kilos: return jsonify({"error": "Stock insuficiente en silo"}), 400
-            silo.kilos_actuales -= kilos
-        
-        venta = VentaGrano(fecha=datetime.utcnow(), comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=kilos, precio_total=precio_total, origen=origen, silo_id=silo_id)
-        db.session.add(venta)
-        db.session.commit()
-        return jsonify({"mensaje": "Venta de grano registrada"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-# --- RUTAS EXISTENTES ---
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
     try:
@@ -246,8 +159,7 @@ def obtener_liquidaciones():
             if not lote: continue 
             cosechas = Cosecha.query.filter_by(lote_id=contrato.lote_id).all()
             total_kilos = sum(c.kilos_totales for c in cosechas)
-            if contrato.tipo == 'APARCERIA':
-                kilos_dueno = total_kilos * (contrato.porcentaje_dueno / 100)
+            if contrato.tipo == 'APARCERIA': kilos_dueno = total_kilos * (contrato.porcentaje_dueno / 100)
             else: kilos_dueno = 0 
             kilos_propios = total_kilos - kilos_dueno
             gastos = Gasto.query.filter_by(lote_id=contrato.lote_id).all()
@@ -255,15 +167,7 @@ def obtener_liquidaciones():
             cant_animales = Animal.query.filter_by(lote_actual_id=lote.id).count()
             lluvias_mes = Lluvia.query.filter_by(lote_id=lote.id).filter(extract('month', Lluvia.fecha) == hoy.month, extract('year', Lluvia.fecha) == hoy.year).all()
             acumulado_lluvia = sum(l.milimetros for l in lluvias_mes)
-            resultados.append({
-                "id": contrato.id, "lote_id": lote.id, "lote": lote.nombre,
-                "hectareas": lote.hectareas, "propietario": contrato.propietario,
-                "tipo": contrato.tipo, "porcentaje": contrato.porcentaje_dueno,
-                "total_cosechado": total_kilos, "kilos_propios": kilos_propios, 
-                "kilos_dueno": kilos_dueno, "total_gastos": total_gastos,
-                "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales,
-                "lluvia_mes": acumulado_lluvia
-            })
+            resultados.append({ "id": contrato.id, "lote_id": lote.id, "lote": lote.nombre, "hectareas": lote.hectareas, "propietario": contrato.propietario, "tipo": contrato.tipo, "porcentaje": contrato.porcentaje_dueno, "total_cosechado": total_kilos, "kilos_propios": kilos_propios, "kilos_dueno": kilos_dueno, "total_gastos": total_gastos, "lat": lote.latitud, "lng": lote.longitud, "animales_count": cant_animales, "lluvia_mes": acumulado_lluvia })
         return jsonify(resultados)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -289,8 +193,118 @@ def obtener_animales():
                     dif_k = peso_act - pesajes[1].kilos
                     dif_d = (pesajes[0].fecha - pesajes[1].fecha).days
                     if dif_d > 0: gdp = dif_k / dif_d
-            lista.append({ "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza, "categoria": vaca.categoria, "peso_actual": peso_act, "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos, "ubicacion": ubicacion, "lote_actual_id": vaca.lote_actual_id })
+            lista.append({ 
+                "id": vaca.id, "caravana": vaca.caravana, "raza": vaca.raza, 
+                "categoria": vaca.categoria, "peso_actual": peso_act, 
+                "gdp": round(gdp, 3), "ultimo_pesaje": ult, "costo_acumulado": total_gastos, 
+                "ubicacion": ubicacion, "lote_actual_id": vaca.lote_actual_id,
+                "estado_reproductivo": vaca.estado_reproductivo # 🆕 Enviamos estado
+            })
         return jsonify(lista)
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# 🆕 NUEVO EVENTO REPRODUCTIVO (INSEMINACION / TACTO / PARTO)
+@app.route('/api/nuevo_evento_reproductivo', methods=['POST'])
+def nuevo_evento_reproductivo():
+    try:
+        d = request.json
+        animal_id = d['animal_id']
+        tipo = d['tipo']
+        detalle = d['detalle']
+        fecha = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+        
+        # Guardar evento
+        evento = EventoReproductivo(animal_id=animal_id, tipo=tipo, detalle=detalle, fecha=fecha)
+        db.session.add(evento)
+
+        # Actualizar estado de la vaca automáticamente
+        animal = Animal.query.get(animal_id)
+        if tipo == 'INSEMINACION':
+            animal.estado_reproductivo = 'INSEMINADA'
+        elif tipo == 'TACTO':
+            if detalle == 'POSITIVO': animal.estado_reproductivo = 'PREÑADA'
+            else: animal.estado_reproductivo = 'VACIA'
+        elif tipo == 'PARTO':
+            animal.estado_reproductivo = 'PARIDA' # O vuelta a VACIA según criterio
+        
+        db.session.commit()
+        return jsonify({"mensaje": "Evento registrado y estado actualizado"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/detalle_animal/<int:id>', methods=['GET'])
+def detalle_animal(id):
+    try:
+        animal = Animal.query.get(id)
+        if not animal: return jsonify({"error": "No existe"}), 404
+        pesajes = Peso.query.filter_by(animal_id=id).order_by(Peso.fecha.asc()).all()
+        data_pesos = [{"fecha": p.fecha.strftime("%d/%m"), "kilos": p.kilos} for p in pesajes]
+        gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
+        data_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
+        
+        # 🆕 OBTENER HISTORIAL REPRODUCTIVO
+        eventos_repro = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
+        data_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos_repro]
+
+        return jsonify({ 
+            "caravana": animal.caravana, 
+            "historial_pesos": data_pesos, 
+            "historial_gastos": data_gastos,
+            "historial_repro": data_repro,
+            "estado_reproductivo": animal.estado_reproductivo
+        })
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# [RESTO DE RUTAS IGUAL QUE ANTES: registrar_venta, silos, etc...]
+# Mantenemos las rutas existentes para no romper nada.
+@app.route('/api/silos', methods=['GET'])
+def obtener_silos():
+    silos = Silo.query.all()
+    return jsonify([{ "id": s.id, "nombre": s.nombre, "tipo": s.tipo, "contenido": s.contenido, "capacidad": s.capacidad, "kilos_actuales": s.kilos_actuales, "lat": s.latitud, "lng": s.longitud } for s in silos])
+
+@app.route('/api/nuevo_silo', methods=['POST'])
+def nuevo_silo():
+    d = request.json
+    lat = float(d['lat']) if d.get('lat') else None
+    lng = float(d['lng']) if d.get('lng') else None
+    nuevo = Silo(nombre=d['nombre'], tipo=d['tipo'], contenido=d['contenido'], capacidad=float(d['capacidad']), latitud=lat, longitud=lng)
+    db.session.add(nuevo); db.session.commit()
+    return jsonify({"mensaje": "Silo creado"}), 201
+
+@app.route('/api/nueva_cosecha', methods=['POST'])
+def nueva_cosecha():
+    try:
+        d = request.json
+        kilos = float(d['kilos'])
+        destino = d.get('destino', 'VENTA')
+        silo_id = d.get('silo_id')
+        nueva = Cosecha(lote_id=d['lote_id'], kilos_totales=kilos, destino=destino, silo_id=silo_id)
+        db.session.add(nueva)
+        if destino == 'SILO' and silo_id:
+            silo = Silo.query.get(silo_id)
+            if silo: silo.kilos_actuales += kilos
+        db.session.commit()
+        return jsonify({"mensaje": "Cosecha registrada"}), 201
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/venta_grano', methods=['POST'])
+def venta_grano():
+    try:
+        d = request.json
+        kilos = float(d['kilos'])
+        precio_total = float(d['precio_total'])
+        origen = d['origen']
+        silo_id = d.get('silo_id')
+        if origen == 'SILO' and silo_id:
+            silo = Silo.query.get(silo_id)
+            if not silo: return jsonify({"error": "Silo no encontrado"}), 404
+            if silo.kilos_actuales < kilos: return jsonify({"error": "Stock insuficiente en silo"}), 400
+            silo.kilos_actuales -= kilos
+        venta = VentaGrano(fecha=datetime.utcnow(), comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=kilos, precio_total=precio_total, origen=origen, silo_id=silo_id)
+        db.session.add(venta); db.session.commit()
+        return jsonify({"mensaje": "Venta de grano registrada"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/registrar_lluvia', methods=['POST'])
@@ -370,23 +384,9 @@ def mover_hacienda():
         return jsonify({"mensaje": "Hacienda movida exitosamente"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/detalle_animal/<int:id>', methods=['GET'])
-def detalle_animal(id):
-    try:
-        animal = Animal.query.get(id)
-        if not animal: return jsonify({"error": "No existe"}), 404
-        pesajes = Peso.query.filter_by(animal_id=id).order_by(Peso.fecha.asc()).all()
-        data_pesos = [{"fecha": p.fecha.strftime("%d/%m"), "kilos": p.kilos} for p in pesajes]
-        gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
-        data_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
-        return jsonify({ "caravana": animal.caravana, "historial_pesos": data_pesos, "historial_gastos": data_gastos })
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-# 🆕 EXCEL CON STOCK DE GRANOS
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     try:
-        # Agro
         data_agro = []
         contratos = ContratoCampo.query.all()
         for c in contratos:
@@ -400,7 +400,6 @@ def exportar_excel():
             total_lluvia_historica = sum(l.milimetros for l in lluvias)
             data_agro.append({ "Lote": lote.nombre, "Hectáreas": lote.hectareas, "Total Cosechado (kg)": total_kilos, "Gastos ($)": total_gastos, "Lluvia (mm)": total_lluvia_historica })
 
-        # Ganaderia
         data_ganaderia = []
         animales = Animal.query.all()
         for a in animales:
@@ -409,9 +408,8 @@ def exportar_excel():
             peso_actual = pesajes[0].kilos if pesajes else 0
             gastos_animal = Gasto.query.filter_by(animal_id=a.id).all()
             total_gastos_animal = sum(g.monto for g in gastos_animal)
-            data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Peso (kg)": peso_actual, "Costo Acum ($)": total_gastos_animal })
+            data_ganaderia.append({ "Caravana": a.caravana, "Categoría": a.categoria, "Peso (kg)": peso_actual, "Costo Acum ($)": total_gastos_animal, "Estado Repro": a.estado_reproductivo })
 
-        # Silos (Stock)
         data_silos = []
         silos = Silo.query.all()
         for s in silos:
@@ -464,7 +462,8 @@ def eliminar_lote(lote_id):
 @app.route('/api/nuevo_animal', methods=['POST'])
 def nuevo_animal():
     d = request.json
-    animal = Animal(caravana=d['caravana'], raza=d['raza'], categoria=d['categoria'])
+    # Por defecto, estado VACIA
+    animal = Animal(caravana=d['caravana'], raza=d['raza'], categoria=d['categoria'], estado_reproductivo='VACIA')
     db.session.add(animal); db.session.commit()
     if d['peso_inicial']: db.session.add(Peso(animal_id=animal.id, kilos=float(d['peso_inicial']))); db.session.commit()
     return jsonify({"mensaje": "Creado"}), 201
