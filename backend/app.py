@@ -12,9 +12,18 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURACIÓN BASE DE DATOS ---
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///agronexo.db')
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+database_url = os.environ.get('DATABASE_URL')
+
+if not database_url:
+    # Esto imprimirá un error en los logs de Render si falta la conexión
+    print("❌ ERROR CRÍTICO: No se encontró la variable DATABASE_URL.")
+    # Fallback temporal SOLO para desarrollo local, pero avisando
+    database_url = 'sqlite:///agronexo.db' 
+else:
+    print("✅ CONEXIÓN DETECTADA: Usando PostgreSQL")
+    # Corrección para Render (postgres vs postgresql)
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -300,6 +309,14 @@ with app.app_context():
             conn.execute(text('ALTER TABLE evento_reproductivo ADD COLUMN IF NOT EXISTS fecha_probable_parto TIMESTAMP;'))
             conn.commit()
     except: pass
-
+# --- RUTA DE EMERGENCIA PARA CREAR TABLAS ---
+@app.route('/api/reset_tablas', methods=['GET'])
+def reset_tablas():
+    try:
+        with app.app_context():
+            db.create_all()
+        return jsonify({"mensaje": "✅ Tablas creadas/verificadas correctamente en la base nueva."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     app.run(debug=True, port=5000, host='0.0.0.0')
