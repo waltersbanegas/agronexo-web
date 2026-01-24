@@ -247,7 +247,22 @@ function App() {
   const cambiarSeccion = (sec) => { setSeccion(sec); setMenuAbierto(false); }; 
   const abrirNuevoLote = () => { setModoEdicion(null); setNuevoContrato({ nombreLote: '', hectareas: '', propietario: '', tipo: 'APARCERIA', porcentaje: 0, lat: null, lng: null }); setShowModalLote(true); };
   const abrirEditarLote = (item) => { setModoEdicion(item.lote_id); setNuevoContrato({ nombreLote: item.lote, hectareas: item.hectareas, propietario: item.propietario, tipo: item.tipo, porcentaje: item.porcentaje, lat: item.lat, lng: item.lng }); setShowModalLote(true); };
-  const guardarContrato = (e) => { e.preventDefault(); const endpoint = modoEdicion ? `${API_URL}/editar_lote/${modoEdicion}` : `${API_URL}/nuevo_contrato`; const method = modoEdicion ? axios.put : axios.post; method(endpoint, nuevoContrato).then(() => { setShowModalLote(false); cargarTodo(); }); };
+  const guardarContrato = (e) => { 
+      e.preventDefault(); 
+      const endpoint = modoEdicion ? `${API_URL}/editar_lote/${modoEdicion}` : `${API_URL}/nuevo_contrato`; 
+      const method = modoEdicion ? axios.put : axios.post; 
+      
+      method(endpoint, nuevoContrato)
+          .then(() => { 
+              alert("✅ Lote guardado correctamente"); // Confirmación visual
+              setShowModalLote(false); 
+              cargarTodo(); 
+          })
+          .catch(err => {
+              console.error(err);
+              alert("❌ Error al guardar: " + (err.response?.data?.error || err.message));
+          });
+  };
   const eliminarLote = (id) => { if (window.confirm("¿Eliminar?")) axios.delete(`${API_URL}/eliminar_lote/${id}`).then(() => cargarTodo()); };
   const guardarCosecha = (e) => { e.preventDefault(); axios.post(`${API_URL}/nueva_cosecha`, nuevaCosecha).then(() => { setShowModalCosecha(false); cargarTodo(); }); }; 
   const guardarAnimal = (e) => { e.preventDefault(); axios.post(`${API_URL}/nuevo_animal`, nuevoAnimal).then(() => { setShowModalAnimal(false); cargarTodo(); alert("Registrado"); }); };
