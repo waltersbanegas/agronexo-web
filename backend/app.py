@@ -9,7 +9,6 @@ from sqlalchemy import extract, func, text
 import random
 
 app = Flask(__name__)
-# Permitir CORS para cualquier origen
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- CONFIGURACIÓN BASE DE DATOS ---
@@ -27,15 +26,11 @@ db = SQLAlchemy(app)
 
 # --- FUNCIONES DE SEGURIDAD ---
 def safe_float(val):
-    try:
-        if val is None or str(val).strip() == "": return 0.0
-        return float(val)
+    try: return float(val) if val and str(val).strip() else 0.0
     except: return 0.0
 
 def safe_int(val):
-    try:
-        if val is None or str(val).strip() == "": return None
-        return int(float(val))
+    try: return int(float(val)) if val and str(val).strip() else None
     except: return None
 
 # --- MODELOS ---
@@ -161,43 +156,56 @@ class Protocolo(db.Model):
 
 # --- RUTAS PRINCIPALES ---
 
+# ⚠️ CORRECCIÓN CLAVE: Devolver UBICACIÓN (Nombre del Lote)
+@app.route('/api/animales', methods=['GET'])
+def animales():
+    res=[]
+    for a in Animal.query.all():
+        if not Venta.query.filter_by(animal_id=a.id).first():
+            # Buscar nombre del lote
+            nombre_lote = "En Corral / Sin Lote"
+            if a.lote_actual_id:
+                lote = Lote.query.get(a.lote_actual_id)
+                if lote: nombre_lote = lote.nombre
+            
+            # Buscar último peso
+            up = Peso.query.filter_by(animal_id=a.id).order_by(Peso.fecha.desc()).first()
+            
+            res.append({
+                "id":a.id, 
+                "caravana":a.caravana, 
+                "categoria":a.categoria, 
+                "raza":a.raza, 
+                "peso_actual":up.kilos if up else 0, 
+                "estado_reproductivo":getattr(a,'estado_reproductivo','VACIA'), 
+                "lote_actual_id":a.lote_actual_id,
+                "ubicacion": nombre_lote # <--- ¡ESTO FALTABA!
+            })
+    return jsonify(res)
+
 @app.route('/api/mover_hacienda', methods=['POST'])
 def mover_hacienda():
     try:
         d = request.json
-        print("Moviendo:", d) # Debug
-        
-        # Safe int convierte "" a None, que es lo que SQL necesita para NULL
-        dest = safe_int(d.get('lote_destino_id'))
-        
+        dest = safe_int(d.get('lote_destino_id')) # Devuelve None si es "" o 0
         count = 0
-        ids = d.get('animales_ids', [])
-        
-        for aid in ids:
+        for aid in d.get('animales_ids', []):
             a = Animal.query.get(aid)
             if a: 
                 a.lote_actual_id = dest
                 count += 1
-                
         db.session.commit()
-        return jsonify({"mensaje": f"Movidos {count} animales correctamente"})
-    except Exception as e:
-        print("Error mover:", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"mensaje": f"Movimiento exitoso ({count} animales)"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
     try:
-        # LISTA MAESTRA DE LOTES (INCLUYE FANTASMAS VISIBLES PARA BORRAR)
+        # ITERAR SOBRE LOTES PARA VER TODOS (INCLUIDOS SIN CONTRATO)
         res = []
         hoy = datetime.utcnow()
-        todos_lotes = Lote.query.all()
-        
-        for l in todos_lotes:
-            # Buscar contrato si existe
+        for l in Lote.query.all():
             c = ContratoCampo.query.filter_by(lote_id=l.id).first()
-            
-            # Datos básicos
             lluvias = Lluvia.query.filter_by(lote_id=l.id).filter(extract('month', Lluvia.fecha) == hoy.month).all()
             mm = sum(ll.milimetros for ll in lluvias)
             cosechas = Cosecha.query.filter_by(lote_id=l.id).all()
@@ -205,34 +213,22 @@ def obtener_liquidaciones():
             gastos = Gasto.query.filter_by(lote_id=l.id).all()
             gts = sum(gs.monto for gs in gastos)
             
-            # Datos de contrato o default
+            # Datos defaults si no hay contrato
             tipo = c.tipo if c else "SIN CONTRATO"
             prop = c.propietario if c else "Desconocido"
             porc = c.porcentaje_dueno if c else 0
+            cid = c.id if c else (l.id * 9999) # ID temporal para frontend
             
-            # ID falso si no tiene contrato para que React no explote con keys duplicadas
-            cid = c.id if c else (l.id * 1000) 
-            
-            res.append({ 
-                "id": cid, 
-                "lote_id": l.id, 
-                "lote": l.nombre, 
-                "hectareas": l.hectareas, 
-                "tipo": tipo, 
-                "propietario": prop,
-                "porcentaje": porc, 
-                "lat": l.latitud, "lng": l.longitud, 
-                "total_cosechado": kg, "total_gastos": gts, "lluvia_mes": mm 
-            })
+            res.append({ "id":cid, "lote_id":l.id, "lote":l.nombre, "hectareas":l.hectareas, "tipo":tipo, "propietario":prop, "porcentaje":porc, "lat":l.latitud, "lng":l.longitud, "total_cosechado":kg, "total_gastos":gts, "lluvia_mes":mm })
         return jsonify(res)
-    except Exception as e: return jsonify([])
+    except: return jsonify([])
 
 @app.route('/api/registrar_lluvia', methods=['POST'])
 def registrar_lluvia():
     try:
         d = request.json
         lid = safe_int(d.get('lote_id'))
-        if not lid: return jsonify({"error": "Falta seleccionar Lote"}), 400
+        if not lid: return jsonify({"error": "Falta Lote"}), 400
         
         fecha = datetime.utcnow()
         if d.get('fecha'):
@@ -244,40 +240,32 @@ def registrar_lluvia():
         return jsonify({"mensaje": "Lluvia OK"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
-def eliminar_lote(lote_id):
+# RUTAS DE LIMPIEZA Y AUXILIARES
+@app.route('/api/purgar_agricultura', methods=['DELETE'])
+def purgar_agricultura():
     try:
-        # Borrado en cascada
-        Lluvia.query.filter_by(lote_id=lote_id).delete()
-        Cosecha.query.filter_by(lote_id=lote_id).delete()
-        Gasto.query.filter_by(lote_id=lote_id).delete()
-        ContratoCampo.query.filter_by(lote_id=lote_id).delete()
-        
-        # Soltar animales
-        animales = Animal.query.filter_by(lote_actual_id=lote_id).all()
-        for a in animales: a.lote_actual_id = None
-        
-        Lote.query.filter_by(id=lote_id).delete()
-        db.session.commit()
-        return jsonify({"mensaje": "Lote eliminado"})
+        db.session.query(Lluvia).delete(); db.session.query(Cosecha).delete(); db.session.query(ContratoCampo).delete()
+        db.session.execute(text("UPDATE animal SET lote_actual_id = NULL"))
+        db.session.query(Lote).delete(); db.session.commit()
+        return jsonify({"mensaje": "Reset OK"})
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/reset_tablas', methods=['GET'])
+def reset_tablas():
+    with app.app_context(): db.create_all()
+    return jsonify({"mensaje": "Tablas OK"})
 
 @app.route('/api/resumen_general', methods=['GET'])
 def resumen_general():
     try:
         hoy = datetime.utcnow(); mes=hoy.month
-        db.session.execute(text('SELECT 1')) # Keepalive
-        
+        db.session.execute(text('SELECT 1')) 
         subq = db.session.query(Venta.animal_id)
         cabezas = db.session.query(Animal).filter(Animal.id.notin_(subq)).count()
         has = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
         grano = db.session.query(func.sum(Silo.kilos_actuales)).scalar() or 0
         gastos = db.session.query(func.sum(Gasto.monto)).filter(extract('month', Gasto.fecha) == mes).scalar() or 0
-        
-        return jsonify({
-            "cabezas": cabezas, "hectareas": round(has, 1), "stock_granos": round(grano, 0),
-            "gastos_mes": round(gastos, 2), "margen_mes": 0, "lluvia_mes": 0
-        })
+        return jsonify({ "cabezas": cabezas, "hectareas": round(has, 1), "stock_granos": round(grano, 0), "gastos_mes": round(gastos, 2), "margen_mes": 0, "lluvia_mes": 0 })
     except: return jsonify({"cabezas":0})
 
 @app.route('/api/nuevo_evento_reproductivo', methods=['POST'])
@@ -287,81 +275,43 @@ def nuevo_evento_reproductivo():
         aid = safe_int(d.get('animal_id'))
         ev = EventoReproductivo(animal_id=aid, tipo=d['tipo'], detalle=d.get('detalle',''), fecha=datetime.utcnow())
         db.session.add(ev)
-        
         a = Animal.query.get(aid)
         if a:
             if d['tipo'] == 'INSEMINACION': a.estado_reproductivo = 'INSEMINADA'
             elif d['tipo'] == 'TACTO': a.estado_reproductivo = 'PREÑADA' if 'POSITIVO' in str(d.get('detalle')).upper() else 'VACIA'
             elif d['tipo'] == 'PARTO': 
                 a.estado_reproductivo = 'PARIDA'
-                # 🐮 NACIMIENTO 🐮
                 try:
                     rnd = random.randint(100, 999)
                     cria = Animal(caravana=f"CRIA-{a.caravana}-{rnd}", categoria='Ternero', raza=a.raza, lote_actual_id=a.lote_actual_id)
                     db.session.add(cria)
                 except: pass
-        
-        db.session.commit()
-        return jsonify({"mensaje": "Evento OK"})
+        db.session.commit(); return jsonify({"mensaje": "Evento OK"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/purgar_agricultura', methods=['DELETE'])
-def purgar_agricultura():
-    try:
-        db.session.query(Lluvia).delete()
-        db.session.query(Cosecha).delete()
-        db.session.query(ContratoCampo).delete()
-        db.session.execute(text("UPDATE animal SET lote_actual_id = NULL"))
-        db.session.query(Lote).delete()
-        db.session.commit()
-        return jsonify({"mensaje": "Reset Agricultura OK"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-# RUTAS CRUD BÁSICAS
-@app.route('/api/animales', methods=['GET'])
-def animales():
-    res=[]
-    for a in Animal.query.all():
-        if not Venta.query.filter_by(animal_id=a.id).first():
-            res.append({"id":a.id, "caravana":a.caravana, "categoria":a.categoria, "raza":a.raza, "peso_actual":0, "estado_reproductivo":getattr(a,'estado_reproductivo','VACIA'), "lote_actual_id":a.lote_actual_id})
-    return jsonify(res)
-
+# CRUD BÁSICO
 @app.route('/api/silos', methods=['GET'])
 def silos(): return jsonify([{"id":s.id, "nombre":s.nombre, "tipo":s.tipo, "contenido":s.contenido, "capacidad":s.capacidad, "kilos_actuales":s.kilos_actuales, "lat":s.latitud, "lng":s.longitud} for s in Silo.query.all()])
-
 @app.route('/api/nuevo_contrato', methods=['POST'])
 def nc(): d=request.json; db.session.add(Lote(nombre=d['nombreLote'], hectareas=safe_float(d.get('hectareas')), latitud=d.get('lat'), longitud=d.get('lng'))); db.session.commit(); db.session.add(ContratoCampo(lote_id=Lote.query.order_by(Lote.id.desc()).first().id, propietario=d['propietario'], tipo=d['tipo'], porcentaje_dueno=safe_float(d.get('porcentaje')))); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/nuevo_animal', methods=['POST'])
 def na(): d=request.json; db.session.add(Animal(caravana=d['caravana'], rfid=d.get('rfid'), raza=d['raza'], categoria=d['categoria'])); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/nuevo_silo', methods=['POST'])
 def ns(): d=request.json; db.session.add(Silo(nombre=d['nombre'], tipo=d['tipo'], contenido=d['contenido'], capacidad=safe_float(d.get('capacidad')), latitud=d.get('lat'), longitud=d.get('lng'))); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/nuevo_pesaje', methods=['POST'])
 def np(): d=request.json; db.session.add(Peso(animal_id=d['animal_id'], kilos=safe_float(d['kilos']), fecha=datetime.utcnow())); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/nuevo_gasto', methods=['POST'])
 def ng(): d=request.json; db.session.add(Gasto(fecha=datetime.utcnow(), concepto=d['concepto'], monto=safe_float(d['monto']), categoria=d['categoria'], lote_id=safe_int(d.get('lote_id')), animal_id=safe_int(d.get('animal_id')))); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/editar_lote/<int:id>', methods=['PUT'])
 def el(id): l=Lote.query.get(id); d=request.json; l.nombre=d['nombreLote']; l.hectareas=safe_float(d['hectareas']); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/venta_grano', methods=['POST'])
 def vg(): d=request.json; db.session.add(VentaGrano(comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=safe_float(d['kilos']), precio_total=safe_float(d['precio_total']), origen=d['origen'], silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/nueva_cosecha', methods=['POST'])
 def nco(): d=request.json; db.session.add(Cosecha(lote_id=safe_int(d['lote_id']), kilos_totales=safe_float(d['kilos']), destino=d.get('destino'), silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/registrar_venta', methods=['POST'])
 def rv(): d=request.json; db.session.add(Venta(animal_id=d['animal_id'], comprador=d['comprador'], kilos_venta=safe_float(d['kilos']), precio_total=safe_float(d['precio']), costo_historico=0)); a=Animal.query.get(d['animal_id']); a.lote_actual_id=None; db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/exportar_excel', methods=['GET'])
-def ee():
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer: pd.DataFrame([{"Estado":"OK"}]).to_excel(writer, sheet_name='Data')
-    output.seek(0); return send_file(output, download_name="Reporte.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
+def ee(): output=BytesIO(); pd.DataFrame([{"Estado":"OK"}]).to_excel(output); output.seek(0); return send_file(output, download_name="Reporte.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/api/detalle_animal/<int:id>', methods=['GET'])
 def da(id):
     a = Animal.query.get(id); 
@@ -369,9 +319,8 @@ def da(id):
     evs = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
     d_repro = [{"fecha": e.fecha.strftime("%d/%m"), "tipo": e.tipo, "detalle": e.detalle} for e in evs]
     return jsonify({"caravana":a.caravana, "categoria":a.categoria, "historial_pesos":[], "historial_gastos":[], "historial_repro":d_repro, "estado_reproductivo": getattr(a,'estado_reproductivo','VACIA')})
-
 @app.route('/api/evento_reproductivo_masivo', methods=['POST'])
-def erm_func():
+def erm():
     d = request.json; count=0
     for aid in d.get('animales_ids', []):
         db.session.add(EventoReproductivo(animal_id=aid, tipo=d['tipo'], detalle=d.get('detalle','')))
@@ -381,7 +330,6 @@ def erm_func():
         elif d['tipo'] == 'PARTO': a.estado_reproductivo = 'PARIDA'
         count+=1
     db.session.commit(); return jsonify({"mensaje": f"Aplicado a {count}"})
-
 @app.route('/api/gasto_masivo', methods=['POST'])
 def gm():
     d=request.json; lote_id=str(d.get('lote_id')); monto_total=safe_float(d.get('monto'))
