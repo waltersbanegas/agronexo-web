@@ -126,6 +126,7 @@ function App() {
   };
 
   const confirmarMovimiento = () => {
+      // ⚠️ FIX: Si es cadena vacía, mandar null o manejarlo
       const destinoFinal = loteDestino === "" ? null : loteDestino;
       axios.post(`${API_URL}/mover_hacienda`, { lote_destino_id: destinoFinal, animales_ids: animalesSeleccionados }).then(() => {
           alert("Hacienda movida correctamente 🚚");

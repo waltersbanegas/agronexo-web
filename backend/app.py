@@ -11,12 +11,12 @@ import traceback
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# --- CONFIGURACIÓN BASE DE DATOS (CON PARCHE SSL) ---
+# --- CONFIGURACIÓN BASE DE DATOS ---
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///agronexo.db')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
     if "?" not in database_url:
-        database_url += "?sslmode=require" # Fix desconexiones
+        database_url += "?sslmode=require"
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -37,7 +37,7 @@ def safe_int(val):
         return int(float(val))
     except: return None
 
-# --- MODELOS ---
+# --- MODELOS (Sin cambios en estructura) ---
 class Lote(db.Model):
     __tablename__ = 'lote'
     id = db.Column(db.Integer, primary_key=True)
@@ -166,95 +166,33 @@ def reset_tablas():
 
 # --- RUTAS RESTAURADAS ---
 
-@app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
-def editar_lote(lote_id):
-    d = request.json
-    try:
-        lote = Lote.query.get(lote_id)
-        if not lote: return jsonify({"error": "No existe"}), 404
-        
-        lote.nombre = d['nombreLote']
-        lote.hectareas = safe_float(d['hectareas'])
-        
-        # Actualizar ubicación si se movió el pin
-        if d.get('lat') and d.get('lng'):
-            lote.latitud = float(d['lat'])
-            lote.longitud = float(d['lng'])
-            
-        # Actualizar contrato
-        c = ContratoCampo.query.filter_by(lote_id=lote.id).first()
-        if c:
-            c.propietario = d['propietario']
-            c.tipo = d['tipo']
-            c.porcentaje_dueno = safe_float(d['porcentaje'])
-            
-        db.session.commit()
-        return jsonify({"mensaje": "Lote actualizado"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
-def eliminar_lote(lote_id):
-    try:
-        # Borrado en cascada manual
-        Lluvia.query.filter_by(lote_id=lote_id).delete()
-        Cosecha.query.filter_by(lote_id=lote_id).delete()
-        Gasto.query.filter_by(lote_id=lote_id).delete()
-        ContratoCampo.query.filter_by(lote_id=lote_id).delete()
-        
-        # Desvincular animales
-        animales = Animal.query.filter_by(lote_actual_id=lote_id).all()
-        for a in animales: a.lote_actual_id = None
-        
-        Lote.query.filter_by(id=lote_id).delete()
-        db.session.commit()
-        return jsonify({"mensaje": "Lote eliminado"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/detalle_animal/<int:id>', methods=['GET'])
-def detalle_animal(id):
-    try:
-        a = Animal.query.get(id)
-        if not a: return jsonify({"error": "No existe"}), 404
-        
-        # RESTAURADO: Consulta de pesos para el gráfico
-        pesajes = Peso.query.filter_by(animal_id=id).order_by(Peso.fecha.asc()).all()
-        d_pesos = [{"fecha": p.fecha.strftime("%d/%m/%y"), "kilos": p.kilos} for p in pesajes]
-        
-        gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
-        d_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
-        
-        eventos = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
-        d_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos]
-        
-        return jsonify({ 
-            "caravana": a.caravana, 
-            "categoria": a.categoria, 
-            "historial_pesos": d_pesos, # DATOS PARA GRÁFICO
-            "historial_gastos": d_gastos, 
-            "historial_repro": d_repro, 
-            "estado_reproductivo": getattr(a, 'estado_reproductivo', 'VACIA') 
-        })
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/registrar_lluvia', methods=['POST'])
-def registrar_lluvia():
+@app.route('/api/mover_hacienda', methods=['POST'])
+def mover_hacienda():
     try:
         d = request.json
-        fecha = datetime.utcnow()
-        if d.get('fecha'):
-            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
-            except: pass
-        db.session.add(Lluvia(lote_id=safe_int(d['lote_id']), milimetros=safe_float(d['milimetros']), fecha=fecha))
+        # CORRECCIÓN CRÍTICA: Convertir "lote_destino_id" a None si viene vacío
+        dest_raw = d.get('lote_destino_id')
+        destino = safe_int(dest_raw) # Esto devolverá None si es ""
+        
+        count = 0
+        for aid in d.get('animales_ids', []):
+            a = Animal.query.get(aid)
+            if a: 
+                a.lote_actual_id = destino
+                count += 1
         db.session.commit()
-        return jsonify({"mensaje": "Lluvia registrada"})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+        return jsonify({"mensaje": f"Movidos {count} animales correctamente"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/resumen_general', methods=['GET'])
 def resumen_general():
     try:
         hoy = datetime.utcnow()
         mes_actual = hoy.month
-        # Safe queries
+        # Force DB connection check
+        db.session.execute(text('SELECT 1')) 
+        
         subq_ventas = db.session.query(Venta.animal_id)
         cabezas = db.session.query(Animal).filter(Animal.id.notin_(subq_ventas)).count()
         
@@ -277,6 +215,72 @@ def resumen_general():
         })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+# [RESTO DE RUTAS IGUALES AL PASO ANTERIOR]
+# Mantener todas las demás rutas CRUD (animales, lotes, silos, etc) tal cual estaban
+# para no romper otras funciones. Solo pegue aquí las corregidas arriba.
+
+@app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
+def editar_lote(lote_id):
+    d = request.json
+    try:
+        lote = Lote.query.get(lote_id)
+        if not lote: return jsonify({"error": "No existe"}), 404
+        lote.nombre = d['nombreLote']
+        lote.hectareas = safe_float(d['hectareas'])
+        if d.get('lat') and d.get('lng'):
+            lote.latitud = float(d['lat']); lote.longitud = float(d['lng'])
+        c = ContratoCampo.query.filter_by(lote_id=lote.id).first()
+        if c:
+            c.propietario = d['propietario']; c.tipo = d['tipo']; c.porcentaje_dueno = safe_float(d['porcentaje'])
+        db.session.commit()
+        return jsonify({"mensaje": "Lote actualizado"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
+def eliminar_lote(lote_id):
+    try:
+        Lluvia.query.filter_by(lote_id=lote_id).delete()
+        Cosecha.query.filter_by(lote_id=lote_id).delete()
+        Gasto.query.filter_by(lote_id=lote_id).delete()
+        ContratoCampo.query.filter_by(lote_id=lote_id).delete()
+        animales = Animal.query.filter_by(lote_actual_id=lote_id).all()
+        for a in animales: a.lote_actual_id = None
+        Lote.query.filter_by(id=lote_id).delete()
+        db.session.commit()
+        return jsonify({"mensaje": "Lote eliminado"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/detalle_animal/<int:id>', methods=['GET'])
+def detalle_animal(id):
+    try:
+        a = Animal.query.get(id)
+        if not a: return jsonify({"error": "No existe"}), 404
+        pesajes = Peso.query.filter_by(animal_id=id).order_by(Peso.fecha.asc()).all()
+        d_pesos = [{"fecha": p.fecha.strftime("%d/%m/%y"), "kilos": p.kilos} for p in pesajes]
+        gastos = Gasto.query.filter_by(animal_id=id).order_by(Gasto.fecha.desc()).all()
+        d_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
+        eventos = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
+        d_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos]
+        return jsonify({ 
+            "caravana": a.caravana, "categoria": a.categoria, 
+            "historial_pesos": d_pesos, "historial_gastos": d_gastos, 
+            "historial_repro": d_repro, "estado_reproductivo": getattr(a, 'estado_reproductivo', 'VACIA') 
+        })
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/registrar_lluvia', methods=['POST'])
+def registrar_lluvia():
+    try:
+        d = request.json
+        fecha = datetime.utcnow()
+        if d.get('fecha'):
+            try: fecha = datetime.strptime(d['fecha'], '%Y-%m-%d')
+            except: pass
+        db.session.add(Lluvia(lote_id=safe_int(d['lote_id']), milimetros=safe_float(d['milimetros']), fecha=fecha))
+        db.session.commit()
+        return jsonify({"mensaje": "Lluvia registrada"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
     try:
@@ -285,7 +289,6 @@ def obtener_liquidaciones():
         for c in ContratoCampo.query.all():
             l = Lote.query.get(c.lote_id)
             if l: 
-                # Lluvia real
                 lluvias = Lluvia.query.filter_by(lote_id=l.id).filter(extract('month', Lluvia.fecha) == hoy.month).all()
                 mm = sum(ll.milimetros for ll in lluvias)
                 cosechas = Cosecha.query.filter_by(lote_id=l.id).all()
@@ -296,7 +299,6 @@ def obtener_liquidaciones():
         return jsonify(res)
     except: return jsonify([])
 
-# [RESTO DE RUTAS CRUD SEGURAS]
 @app.route('/api/animales', methods=['GET'])
 def obtener_animales():
     try:
@@ -390,24 +392,6 @@ def gasto_masivo():
         db.session.commit(); return jsonify({"mensaje":"OK"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-@app.route('/api/mover_hacienda', methods=['POST'])
-def mover_hacienda():
-    d=request.json; dest=safe_int(d.get('lote_destino_id'))
-    for aid in d.get('animales_ids', []):
-        a=Animal.query.get(aid)
-        if a: a.lote_actual_id=dest
-    db.session.commit(); return jsonify({"mensaje":"OK"})
-
-@app.route('/api/nueva_cosecha', methods=['POST'])
-def nueva_cosecha():
-    d=request.json; db.session.add(Cosecha(lote_id=safe_int(d['lote_id']), kilos_totales=safe_float(d['kilos']), destino=d.get('destino'), silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"msg":"OK"})
-
-@app.route('/api/venta_grano', methods=['POST'])
-def venta_grano():
-    d=request.json
-    db.session.add(VentaGrano(comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=safe_float(d['kilos']), precio_total=safe_float(d['precio_total']), origen=d['origen'], silo_id=safe_int(d.get('silo_id'))))
-    db.session.commit(); return jsonify({"msg":"OK"})
-
 @app.route('/api/registrar_venta', methods=['POST'])
 def registrar_venta():
     d=request.json
@@ -418,6 +402,16 @@ def registrar_venta():
     a.lote_actual_id=None
     db.session.commit(); return jsonify({"mensaje":"Venta OK", "margen": safe_float(d['precio'])-costo})
 
+@app.route('/api/nueva_cosecha', methods=['POST'])
+def nueva_cosecha():
+    d=request.json; db.session.add(Cosecha(lote_id=safe_int(d['lote_id']), kilos_totales=safe_float(d['kilos']), destino=d.get('destino'), silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"mensaje":"OK"})
+
+@app.route('/api/venta_grano', methods=['POST'])
+def venta_grano():
+    d=request.json
+    db.session.add(VentaGrano(comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=safe_float(d['kilos']), precio_total=safe_float(d['precio_total']), origen=d['origen'], silo_id=safe_int(d.get('silo_id'))))
+    db.session.commit(); return jsonify({"mensaje":"OK"})
+
 @app.route('/api/exportar_excel', methods=['GET'])
 def exportar_excel():
     output = BytesIO()
@@ -426,6 +420,7 @@ def exportar_excel():
     output.seek(0)
     return send_file(output, download_name="Reporte.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+# --- INICIO ---
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
     app.run(debug=True, port=5000, host='0.0.0.0')
