@@ -9,9 +9,10 @@ from sqlalchemy import extract, func, text
 import random
 
 app = Flask(__name__)
+# Permitir CORS para cualquier origen
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# --- CONFIGURACIÓN DB ---
+# --- CONFIGURACIÓN BASE DE DATOS ---
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///agronexo.db')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -24,13 +25,17 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle"
 
 db = SQLAlchemy(app)
 
-# --- SEGURIDAD ---
+# --- FUNCIONES DE SEGURIDAD ---
 def safe_float(val):
-    try: return float(val) if val and str(val).strip() else 0.0
+    try:
+        if val is None or str(val).strip() == "": return 0.0
+        return float(val)
     except: return 0.0
 
 def safe_int(val):
-    try: return int(float(val)) if val and str(val).strip() else None
+    try:
+        if val is None or str(val).strip() == "": return None
+        return int(float(val))
     except: return None
 
 # --- MODELOS ---
@@ -156,11 +161,34 @@ class Protocolo(db.Model):
 
 # --- RUTAS PRINCIPALES ---
 
+@app.route('/api/mover_hacienda', methods=['POST'])
+def mover_hacienda():
+    try:
+        d = request.json
+        print("Moviendo:", d) # Debug
+        
+        # Safe int convierte "" a None, que es lo que SQL necesita para NULL
+        dest = safe_int(d.get('lote_destino_id'))
+        
+        count = 0
+        ids = d.get('animales_ids', [])
+        
+        for aid in ids:
+            a = Animal.query.get(aid)
+            if a: 
+                a.lote_actual_id = dest
+                count += 1
+                
+        db.session.commit()
+        return jsonify({"mensaje": f"Movidos {count} animales correctamente"})
+    except Exception as e:
+        print("Error mover:", e)
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/liquidaciones', methods=['GET'])
 def obtener_liquidaciones():
     try:
-        # CORRECCIÓN CRÍTICA: Iterar sobre LOTES, no Contratos
-        # Esto hace visibles a los lotes "huérfanos" (fantasmas)
+        # LISTA MAESTRA DE LOTES (INCLUYE FANTASMAS VISIBLES PARA BORRAR)
         res = []
         hoy = datetime.utcnow()
         todos_lotes = Lote.query.all()
@@ -177,13 +205,16 @@ def obtener_liquidaciones():
             gastos = Gasto.query.filter_by(lote_id=l.id).all()
             gts = sum(gs.monto for gs in gastos)
             
-            # Si no tiene contrato, mostramos datos genéricos para que se pueda borrar
+            # Datos de contrato o default
             tipo = c.tipo if c else "SIN CONTRATO"
             prop = c.propietario if c else "Desconocido"
             porc = c.porcentaje_dueno if c else 0
             
+            # ID falso si no tiene contrato para que React no explote con keys duplicadas
+            cid = c.id if c else (l.id * 1000) 
+            
             res.append({ 
-                "id": c.id if c else random.randint(10000,99999), # ID falso si no hay contrato para que React no falle
+                "id": cid, 
                 "lote_id": l.id, 
                 "lote": l.nombre, 
                 "hectareas": l.hectareas, 
@@ -196,28 +227,12 @@ def obtener_liquidaciones():
         return jsonify(res)
     except Exception as e: return jsonify([])
 
-@app.route('/api/mover_hacienda', methods=['POST'])
-def mover_hacienda():
-    try:
-        d = request.json
-        # Convertir a INT o NONE de forma segura
-        dest = safe_int(d.get('lote_destino_id'))
-        count = 0
-        for aid in d.get('animales_ids', []):
-            a = Animal.query.get(aid)
-            if a: 
-                a.lote_actual_id = dest
-                count += 1
-        db.session.commit()
-        return jsonify({"mensaje": f"Movidos {count} animales."})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
 @app.route('/api/registrar_lluvia', methods=['POST'])
 def registrar_lluvia():
     try:
         d = request.json
         lid = safe_int(d.get('lote_id'))
-        if not lid: return jsonify({"error": "Falta Lote"}), 400
+        if not lid: return jsonify({"error": "Falta seleccionar Lote"}), 400
         
         fecha = datetime.utcnow()
         if d.get('fecha'):
@@ -232,7 +247,7 @@ def registrar_lluvia():
 @app.route('/api/eliminar_lote/<int:lote_id>', methods=['DELETE'])
 def eliminar_lote(lote_id):
     try:
-        # Borrado en cascada manual
+        # Borrado en cascada
         Lluvia.query.filter_by(lote_id=lote_id).delete()
         Cosecha.query.filter_by(lote_id=lote_id).delete()
         Gasto.query.filter_by(lote_id=lote_id).delete()
@@ -247,16 +262,14 @@ def eliminar_lote(lote_id):
         return jsonify({"mensaje": "Lote eliminado"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# [OTRAS RUTAS DE SOPORTE - IGUAL QUE ANTES]
-
 @app.route('/api/resumen_general', methods=['GET'])
 def resumen_general():
     try:
         hoy = datetime.utcnow(); mes=hoy.month
-        # Verificar integridad
-        db.create_all()
+        db.session.execute(text('SELECT 1')) # Keepalive
         
-        cabezas = db.session.query(Animal).filter(Animal.id.notin_(db.session.query(Venta.animal_id))).count()
+        subq = db.session.query(Venta.animal_id)
+        cabezas = db.session.query(Animal).filter(Animal.id.notin_(subq)).count()
         has = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
         grano = db.session.query(func.sum(Silo.kilos_actuales)).scalar() or 0
         gastos = db.session.query(func.sum(Gasto.monto)).filter(extract('month', Gasto.fecha) == mes).scalar() or 0
@@ -281,7 +294,7 @@ def nuevo_evento_reproductivo():
             elif d['tipo'] == 'TACTO': a.estado_reproductivo = 'PREÑADA' if 'POSITIVO' in str(d.get('detalle')).upper() else 'VACIA'
             elif d['tipo'] == 'PARTO': 
                 a.estado_reproductivo = 'PARIDA'
-                # 🐮 NACIMIENTO AUTOMÁTICO 🐮
+                # 🐮 NACIMIENTO 🐮
                 try:
                     rnd = random.randint(100, 999)
                     cria = Animal(caravana=f"CRIA-{a.caravana}-{rnd}", categoria='Ternero', raza=a.raza, lote_actual_id=a.lote_actual_id)
@@ -292,7 +305,19 @@ def nuevo_evento_reproductivo():
         return jsonify({"mensaje": "Evento OK"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
-# RUTAS CRUD BÁSICAS BLINDADAS
+@app.route('/api/purgar_agricultura', methods=['DELETE'])
+def purgar_agricultura():
+    try:
+        db.session.query(Lluvia).delete()
+        db.session.query(Cosecha).delete()
+        db.session.query(ContratoCampo).delete()
+        db.session.execute(text("UPDATE animal SET lote_actual_id = NULL"))
+        db.session.query(Lote).delete()
+        db.session.commit()
+        return jsonify({"mensaje": "Reset Agricultura OK"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# RUTAS CRUD BÁSICAS
 @app.route('/api/animales', methods=['GET'])
 def animales():
     res=[]
@@ -331,9 +356,6 @@ def nco(): d=request.json; db.session.add(Cosecha(lote_id=safe_int(d['lote_id'])
 @app.route('/api/registrar_venta', methods=['POST'])
 def rv(): d=request.json; db.session.add(Venta(animal_id=d['animal_id'], comprador=d['comprador'], kilos_venta=safe_float(d['kilos']), precio_total=safe_float(d['precio']), costo_historico=0)); a=Animal.query.get(d['animal_id']); a.lote_actual_id=None; db.session.commit(); return jsonify({"msg":"OK"})
 
-@app.route('/api/reset_tablas', methods=['GET'])
-def rt(): with app.app_context(): db.create_all(); return jsonify({"msg":"OK"})
-
 @app.route('/api/exportar_excel', methods=['GET'])
 def ee():
     output = BytesIO()
@@ -349,7 +371,7 @@ def da(id):
     return jsonify({"caravana":a.caravana, "categoria":a.categoria, "historial_pesos":[], "historial_gastos":[], "historial_repro":d_repro, "estado_reproductivo": getattr(a,'estado_reproductivo','VACIA')})
 
 @app.route('/api/evento_reproductivo_masivo', methods=['POST'])
-def erm():
+def erm_func():
     d = request.json; count=0
     for aid in d.get('animales_ids', []):
         db.session.add(EventoReproductivo(animal_id=aid, tipo=d['tipo'], detalle=d.get('detalle','')))
