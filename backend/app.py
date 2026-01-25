@@ -4,9 +4,8 @@ from io import BytesIO
 from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy import extract, func, text
-import traceback
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -37,7 +36,7 @@ def safe_int(val):
         return int(float(val))
     except: return None
 
-# --- MODELOS (Sin cambios en estructura) ---
+# --- MODELOS ---
 class Lote(db.Model):
     __tablename__ = 'lote'
     id = db.Column(db.Integer, primary_key=True)
@@ -164,25 +163,32 @@ def reset_tablas():
     with app.app_context(): db.create_all()
     return jsonify({"mensaje": "Tablas OK"})
 
-# --- RUTAS RESTAURADAS ---
+# --- RUTAS PRINCIPALES CORREGIDAS ---
 
 @app.route('/api/mover_hacienda', methods=['POST'])
 def mover_hacienda():
     try:
         d = request.json
-        # CORRECCIÓN CRÍTICA: Convertir "lote_destino_id" a None si viene vacío
-        dest_raw = d.get('lote_destino_id')
-        destino = safe_int(dest_raw) # Esto devolverá None si es ""
+        print("Moviendo:", d) # Debug log
         
+        # ⚠️ CORRECCIÓN CLAVE: Asegurar que si viene vacío, sea None
+        raw_dest = d.get('lote_destino_id')
+        destino = safe_int(raw_dest)
+        
+        # Si safe_int devuelve None, es correcto para "Sin Lote"
+        
+        ids = d.get('animales_ids', [])
         count = 0
-        for aid in d.get('animales_ids', []):
+        for aid in ids:
             a = Animal.query.get(aid)
-            if a: 
+            if a:
                 a.lote_actual_id = destino
                 count += 1
+        
         db.session.commit()
-        return jsonify({"mensaje": f"Movidos {count} animales correctamente"})
+        return jsonify({"mensaje": f"Se movieron {count} animales."})
     except Exception as e:
+        print("Error mover:", e)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/resumen_general', methods=['GET'])
@@ -190,14 +196,26 @@ def resumen_general():
     try:
         hoy = datetime.utcnow()
         mes_actual = hoy.month
-        # Force DB connection check
+        # Forzar chequeo de conexión
         db.session.execute(text('SELECT 1')) 
         
-        subq_ventas = db.session.query(Venta.animal_id)
-        cabezas = db.session.query(Animal).filter(Animal.id.notin_(subq_ventas)).count()
+        # 1. Cabezas (excluyendo vendidos)
+        # Usamos una lista de IDs vendidos para filtrar
+        ventas_ids = db.session.query(Venta.animal_id).all()
+        ventas_ids = [v[0] for v in ventas_ids] # Aplanar lista
         
+        if ventas_ids:
+            cabezas = db.session.query(Animal).filter(Animal.id.notin_(ventas_ids)).count()
+        else:
+            cabezas = db.session.query(Animal).count()
+        
+        # 2. Hectareas (Solo sumar lotes existentes)
         has = db.session.query(func.sum(Lote.hectareas)).scalar() or 0
+        
+        # 3. Stock Silos
         grano = db.session.query(func.sum(Silo.kilos_actuales)).scalar() or 0
+        
+        # 4. Finanzas Mes
         gastos = db.session.query(func.sum(Gasto.monto)).filter(extract('month', Gasto.fecha) == mes_actual).scalar() or 0
         
         ventas = Venta.query.filter(extract('month', Venta.fecha) == mes_actual).all()
@@ -213,12 +231,15 @@ def resumen_general():
             "margen_mes": round(margen + v_grano, 2),
             "lluvia_mes": 0 
         })
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        print("Error Resumen:", e)
+        # Fallback seguro
+        return jsonify({
+            "cabezas": 0, "hectareas": 0, "stock_granos": 0, 
+            "gastos_mes": 0, "margen_mes": 0, "lluvia_mes": 0
+        })
 
-# [RESTO DE RUTAS IGUALES AL PASO ANTERIOR]
-# Mantener todas las demás rutas CRUD (animales, lotes, silos, etc) tal cual estaban
-# para no romper otras funciones. Solo pegue aquí las corregidas arriba.
-
+# [RESTO DE RUTAS MANTENIDAS]
 @app.route('/api/editar_lote/<int:lote_id>', methods=['PUT'])
 def editar_lote(lote_id):
     d = request.json
@@ -261,11 +282,7 @@ def detalle_animal(id):
         d_gastos = [{"fecha": g.fecha.strftime("%d/%m/%Y"), "concepto": g.concepto, "monto": g.monto} for g in gastos]
         eventos = EventoReproductivo.query.filter_by(animal_id=id).order_by(EventoReproductivo.fecha.desc()).all()
         d_repro = [{"fecha": e.fecha.strftime("%d/%m/%Y"), "tipo": e.tipo, "detalle": e.detalle} for e in eventos]
-        return jsonify({ 
-            "caravana": a.caravana, "categoria": a.categoria, 
-            "historial_pesos": d_pesos, "historial_gastos": d_gastos, 
-            "historial_repro": d_repro, "estado_reproductivo": getattr(a, 'estado_reproductivo', 'VACIA') 
-        })
+        return jsonify({ "caravana": a.caravana, "categoria": a.categoria, "historial_pesos": d_pesos, "historial_gastos": d_gastos, "historial_repro": d_repro, "estado_reproductivo": getattr(a, 'estado_reproductivo', 'VACIA') })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/api/registrar_lluvia', methods=['POST'])
