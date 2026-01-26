@@ -40,7 +40,7 @@ function App() {
   const [showModalGasto, setShowModalGasto] = useState(false); 
   const [showModalDetalleAnimal, setShowModalDetalleAnimal] = useState(false);
   const [showModalMover, setShowModalMover] = useState(false); 
-  const [showModalBaja, setShowModalBaja] = useState(false); // 🆕 MODAL DE BAJA
+  const [showModalBaja, setShowModalBaja] = useState(false); // 🆕 NUEVO MODAL DE BAJA
   const [showModalSanidad, setShowModalSanidad] = useState(false); 
   const [showModalLluvia, setShowModalLluvia] = useState(false);
   const [showModalNuevoSilo, setShowModalNuevoSilo] = useState(false);
@@ -113,11 +113,11 @@ function App() {
 
   // ⚠️ NUEVO: RESET DE FÁBRICA
   const resetFabrica = () => {
-      if(window.confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará ABSOLUTAMENTE TODOS los datos y reparará la base de datos.\n\n¿Deseas continuar?")) {
+      if(window.confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará ABSOLUTAMENTE TODOS los datos.\n\n¿Deseas continuar?")) {
           axios.post(`${API_URL}/reset_fabrica`).then(res => {
               alert(res.data.mensaje);
               window.location.reload();
-          }).catch(err => alert("Error: " + err.message));
+          }).catch(err => alert("Error al resetear: " + err.message));
       }
   }
 
