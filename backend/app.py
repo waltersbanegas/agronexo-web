@@ -130,6 +130,9 @@ class EventoReproductivo(db.Model):
     detalle = db.Column(db.String(100))
     protocolo_id = db.Column(db.Integer, nullable=True)
     genetica_id = db.Column(db.Integer, nullable=True)
+    operario = db.Column(db.String(50), nullable=True)
+    condicion_corporal = db.Column(db.Float, nullable=True)
+    fecha_probable_parto = db.Column(db.DateTime, nullable=True)
 
 class InsumoGenetico(db.Model):
     id = db.Column(db.Integer, primary_key=True)
