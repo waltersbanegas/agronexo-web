@@ -206,12 +206,32 @@ function App() {
   
   const confirmarVenta = (e) => {
       e.preventDefault();
-      const totalVenta = parseFloat(datosVenta.kilos) * parseFloat(datosVenta.precio);
-      const dataToSend = { ...datosVenta, precio: totalVenta };
+      
+      // Convertir a número con seguridad (reemplaza comas por puntos por si acaso)
+      const k = parseFloat(datosVenta.kilos.toString().replace(',','.'));
+      const p = parseFloat(datosVenta.precio.toString().replace(',','.'));
+      
+      if (isNaN(k) || k <= 0) return alert("Por favor ingresa los Kilos válidos.");
+      if (isNaN(p) || p <= 0) return alert("Por favor ingresa el Precio válido.");
+
+      // Calculamos el total aquí
+      const totalVenta = k * p;
+      
+      // Enviamos el TOTAL al backend (porque el backend espera el monto final de la operación)
+      const dataToSend = { 
+          ...datosVenta, 
+          kilos: k,
+          precio: totalVenta 
+      };
+
       axios.post(`${API_URL}/registrar_venta`, dataToSend).then((res) => {
-          alert(`✅ VENTA EXITOSA\nTotal: $ ${totalVenta.toLocaleString()}\nMargen: $ ${res.data.margen.toLocaleString()}`);
-          setShowModalVenta(false); cargarTodo();
-      }).catch(() => alert("Error al registrar venta"));
+          alert(`✅ VENTA EXITOSA\n\nTotal Operación: $ ${totalVenta.toLocaleString()}\nMargen Ganancia: $ ${res.data.margen.toLocaleString()}`);
+          setShowModalVenta(false); 
+          cargarTodo();
+      }).catch((err) => {
+          console.error(err);
+          alert(err.response?.data?.error || "Error al conectar con el servidor");
+      });
   };
 
   const confirmarSanidad = (e) => {

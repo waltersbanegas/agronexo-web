@@ -340,8 +340,53 @@ def el(id): l=Lote.query.get(id); d=request.json; l.nombre=d['nombreLote']; l.he
 def vg(): d=request.json; db.session.add(VentaGrano(comprador=d['comprador'], tipo_grano=d['tipo_grano'], kilos=safe_float(d['kilos']), precio_total=safe_float(d['precio_total']), origen=d['origen'], silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"msg":"OK"})
 @app.route('/api/nueva_cosecha', methods=['POST'])
 def nco(): d=request.json; db.session.add(Cosecha(lote_id=safe_int(d['lote_id']), kilos_totales=safe_float(d['kilos']), destino=d.get('destino'), silo_id=safe_int(d.get('silo_id')))); db.session.commit(); return jsonify({"msg":"OK"})
+# --- RUTA VENTA REPARADA Y BLINDADA ---
 @app.route('/api/registrar_venta', methods=['POST'])
-def rv(): d=request.json; db.session.add(Venta(animal_id=d['animal_id'], comprador=d['comprador'], kilos_venta=safe_float(d['kilos']), precio_total=safe_float(d['precio']), costo_historico=0)); a=Animal.query.get(d['animal_id']); a.lote_actual_id=None; db.session.commit(); return jsonify({"msg":"OK"})
+def registrar_venta():
+    try:
+        d = request.json
+        print("Intentando vender:", d) # Para ver en los logs
+        
+        # 1. Validar ID
+        animal_id = safe_int(d.get('animal_id'))
+        if not animal_id:
+            return jsonify({"error": "Error: No se identificó al animal."}), 400
+
+        # 2. Calcular costos acumulados para saber el margen real
+        gastos = Gasto.query.filter_by(animal_id=animal_id).all()
+        total_costo = sum(safe_float(g.monto) for g in gastos)
+        
+        # 3. Datos de venta seguros
+        kilos = safe_float(d.get('kilos'))
+        precio_total = safe_float(d.get('precio')) # El frontend ya manda el total calculado
+        
+        if kilos <= 0 or precio_total <= 0:
+             return jsonify({"error": "Error: Kilos o Precio deben ser mayores a 0."}), 400
+
+        # 4. Crear registro de venta
+        nueva_venta = Venta(
+            animal_id=animal_id,
+            comprador=d.get('comprador', 'Consumidor Final'),
+            kilos_venta=kilos,
+            precio_total=precio_total,
+            costo_historico=total_costo,
+            fecha=datetime.utcnow()
+        )
+        db.session.add(nueva_venta)
+        
+        # 5. Sacar al animal del stock (Quitar lote)
+        # Nota: No lo borramos, solo le quitamos la ubicación para que no aparezca en "Activos"
+        animal = Animal.query.get(animal_id)
+        if animal:
+            animal.lote_actual_id = None
+            
+        db.session.commit()
+        return jsonify({"mensaje": "Venta registrada exitosamente 💰", "margen": precio_total - total_costo})
+        
+    except Exception as e:
+        print("ERROR VENTA:", e)
+        db.session.rollback()
+        return jsonify({"error": "Error interno: " + str(e)}), 500
 @app.route('/api/exportar_excel', methods=['GET'])
 def ee(): output=BytesIO(); pd.DataFrame([{"Estado":"OK"}]).to_excel(output); output.seek(0); return send_file(output, download_name="Reporte.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/api/gasto_masivo', methods=['POST'])
