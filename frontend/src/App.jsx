@@ -40,7 +40,7 @@ function App() {
   const [showModalGasto, setShowModalGasto] = useState(false); 
   const [showModalDetalleAnimal, setShowModalDetalleAnimal] = useState(false);
   const [showModalMover, setShowModalMover] = useState(false); 
-  const [showModalBaja, setShowModalBaja] = useState(false); // 🆕 NUEVO MODAL DE BAJA
+  const [showModalBaja, setShowModalBaja] = useState(false); // 🆕 MODAL DE BAJA
   const [showModalSanidad, setShowModalSanidad] = useState(false); 
   const [showModalLluvia, setShowModalLluvia] = useState(false);
   const [showModalNuevoSilo, setShowModalNuevoSilo] = useState(false);
@@ -66,7 +66,7 @@ function App() {
   const [datosDetalleAnimal, setDatosDetalleAnimal] = useState(null);
   const [datosEdicionAnimal, setDatosEdicionAnimal] = useState({ id:null, caravana:'', rfid:'', categoria:'', raza:'' });
   
-  // 🆕 DATOS BAJA (Venta/Robo/Etc)
+  // 🆕 DATOS PARA BAJA
   const [datosBaja, setDatosBaja] = useState({ animal_id: null, motivo: 'VENTA', comprador: '', detalle: '', kilos: '', precio: '' });
   
   const [datosSanidad, setDatosSanidad] = useState({ lote_id: 'all', concepto: '', monto: '', fecha: '' });
@@ -113,11 +113,11 @@ function App() {
 
   // ⚠️ NUEVO: RESET DE FÁBRICA
   const resetFabrica = () => {
-      if(window.confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará ABSOLUTAMENTE TODOS los datos.\nEs necesario para arreglar los errores actuales.\n\n¿Proceder?")) {
+      if(window.confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará ABSOLUTAMENTE TODOS los datos y reparará la base de datos.\n\n¿Deseas continuar?")) {
           axios.post(`${API_URL}/reset_fabrica`).then(res => {
               alert(res.data.mensaje);
               window.location.reload();
-          }).catch(err => alert("Error al resetear: " + err.message));
+          }).catch(err => alert("Error: " + err.message));
       }
   }
 
@@ -129,9 +129,9 @@ function App() {
       axios.get(`${API_URL}/detalle_animal/${vaca.id}`).then(res => setDatosDetalleAnimal({...res.data, id: vaca.id}));
   };
 
-  // 🆕 NUEVO: INICIAR BAJA (VENTA/ROBO/ETC)
+  // 🆕 INICIAR BAJA
   const iniciarBaja = () => {
-      if (!datosDetalleAnimal || !datosDetalleAnimal.id) return alert("Error: ID del animal no encontrado. Recarga.");
+      if (!datosDetalleAnimal || !datosDetalleAnimal.id) return alert("Error: ID no encontrado. Recarga.");
       setDatosBaja({ 
           animal_id: datosDetalleAnimal.id, 
           motivo: 'VENTA', 
@@ -150,7 +150,6 @@ function App() {
           if (isNaN(k) || k <= 0) return alert("Kilos inválidos");
           if (isNaN(p) || p <= 0) return alert("Precio inválido");
           
-          // Calcular total si es venta
           const total = k * p;
           axios.post(`${API_URL}/registrar_baja`, { ...datosBaja, kilos: k, precio: total }).then((res) => {
               alert(`✅ Baja registrada: ${datosBaja.motivo}\nTotal: $ ${total.toLocaleString()}`);
