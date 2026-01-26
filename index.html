@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>AgroNexo Final</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+        .card { background: white; padding: 20px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #1a1a1a; }
+        .btn { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; }
+        .ok { color: green; font-weight: bold; }
+        .err { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>AgroNexo - Panel de Control</h1>
+    
+    <div class="card">
+        <h3>Estado del Sistema: <span id="status">Conectando...</span></h3>
+        <p>Si ves "Error", pulsa el botón rojo abajo.</p>
+        <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="btn">🔴 RESETEAR FÁBRICA</a>
+    </div>
+
+    <div class="card">
+        <h2>Resumen</h2>
+        <p>🐮 Animales: <strong id="val-animales">--</strong></p>
+        <p>🚜 Lotes: <strong id="val-lotes">--</strong></p>
+    </div>
+
+    <script>
+        // URL DEL BACKEND (Asegúrate que esta sea tu URL real de Render)
+        const API = "https://agronexo-backend.onrender.com";
+
+        async function cargar() {
+            const statusEl = document.getElementById('status');
+            try {
+                // 1. Probar conexión y traer datos
+                const res = await fetch(`${API}/api/resumen`);
+                if(!res.ok) throw new Error("Error HTTP");
+                
+                const data = await res.json();
+                
+                // 2. Mostrar datos
+                document.getElementById('val-animales').innerText = data.animales;
+                document.getElementById('val-lotes').innerText = data.lotes;
+                statusEl.innerHTML = "🟢 ONLINE (Conectado)";
+                statusEl.className = "ok";
+                
+            } catch (e) {
+                console.error(e);
+                statusEl.innerHTML = "🔴 ERROR DE CONEXIÓN";
+                statusEl.className = "err";
+            }
+        }
+
+        // Cargar al iniciar
+        cargar();
+    </script>
+</body>
+</html>
