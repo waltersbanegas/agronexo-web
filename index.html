@@ -3,303 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo Expert</title>
-    
+    <title>AgroNexo ERP Pro</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
-        :root { --p: #0f172a; --a: #22c55e; --bg: #f1f5f9; --del: #ef4444; }
+        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; --red: #ef4444; }
         * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
-        body { display:flex; height:100vh; overflow:hidden; background:var(--bg); }
-
-        /* SIDEBAR */
-        .sidebar { width:250px; background:var(--p); color:white; padding:15px; display:flex; flex-direction:column; z-index:900; }
-        .logo { font-size:22px; font-weight:bold; color:var(--a); margin-bottom:25px; display:flex; gap:10px; align-items:center; }
-        .nav-btn { background:transparent; border:none; color:#cbd5e1; width:100%; padding:12px; text-align:left; cursor:pointer; display:flex; gap:12px; border-radius:8px; margin-bottom:5px; align-items:center; }
-        .nav-btn:hover, .nav-btn.active { background:#334155; color:white; border-left:4px solid var(--a); }
-
-        /* MAIN */
-        .main { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
-        .view { flex:1; display:none; padding:20px; overflow-y:auto; }
-        .view.active { display:block; }
-        
-        /* WIDGET CLIMA */
-        .weather-widget { background: linear-gradient(135deg, #3b82f6, #2563eb); color:white; padding:20px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 10px rgba(37,99,235,0.2); }
-        .weather-temp { font-size:36px; font-weight:bold; }
-        .weather-loc { font-size:14px; opacity:0.9; }
-
-        /* KPI CARDS */
-        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:20px; }
-        .card { background:white; padding:20px; border-radius:10px; border-top:4px solid var(--a); box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-        .card .num { font-size:32px; font-weight:bold; color:#1e293b; }
-        .card .lbl { font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; }
-
-        /* TABLAS Y PANELES */
-        .panel { background:white; border-radius:10px; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-        .head-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
-        .btn-act { background:var(--a); color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold; }
-        .btn-del { background:none; border:none; color:var(--del); cursor:pointer; font-size:16px; }
-
-        table { width:100%; border-collapse:collapse; font-size:14px; }
-        th { text-align:left; background:#f8fafc; padding:12px; border-bottom:2px solid #e2e8f0; color:#64748b; }
-        td { padding:12px; border-bottom:1px solid #e2e8f0; }
-
-        /* MAPA */
-        #map { width:100%; height:100%; }
-        #mapa.view { padding:0; } /* Full screen */
-
-        /* MODALES */
-        .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; justify-content:center; align-items:center; }
-        .modal { background:white; width:95%; max-width:450px; padding:25px; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto; }
-        .form-row { display:flex; gap:10px; }
-        .form-group { margin-bottom:15px; flex:1; }
-        .form-group label { display:block; font-size:12px; font-weight:bold; color:#64748b; margin-bottom:5px; }
-        .form-input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; }
-        .modal-ft { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
-
-        /* MÓVIL */
-        .mob-nav { display:none; }
-        .fab { display:none; position:fixed; bottom:80px; right:20px; width:56px; height:56px; background:var(--a); color:white; border-radius:50%; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:1500; border:none; }
-        
-        @media (max-width: 768px) {
-            body { flex-direction:column; }
-            .sidebar { display:none; } /* Ocultar sidebar PC */
-            .main { margin-bottom:60px; }
-            .mob-nav { display:flex; position:fixed; bottom:0; width:100%; height:60px; background:white; border-top:1px solid #e2e8f0; z-index:2000; justify-content:space-around; align-items:center; }
-            .mob-btn { background:none; border:none; color:#64748b; display:flex; flex-direction:column; align-items:center; font-size:10px; gap:4px; }
-            .mob-btn.active { color:var(--a); }
-            .mob-btn i { font-size:20px; }
-            .fab { display:flex; }
-            .pc-only { display:none; }
-        }
+        body { background:var(--bg); display:flex; height:100vh; overflow:hidden; }
+        .sidebar { width:260px; background:var(--p); color:white; padding:15px; display:flex; flex-direction:column; z-index:1000; }
+        .logo { font-size:22px; font-weight:bold; color:var(--a); margin-bottom:30px; }
+        .nav-btn { background:none; border:none; color:#cbd5e1; width:100%; padding:12px; text-align:left; cursor:pointer; display:flex; gap:12px; border-radius:8px; margin-bottom:5px; align-items:center; }
+        .nav-btn.active, .nav-btn:hover { background:#334155; color:white; border-left:4px solid var(--a); }
+        .main { flex:1; overflow-y:auto; padding:20px; position:relative; }
+        .view { display:none; }
+        .view.active { display:block; animation:fadeIn 0.3s; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-bottom:20px; }
+        .card { background:white; padding:25px; border-radius:12px; border-top:5px solid var(--a); box-shadow:0 4px 6px rgba(0,0,0,0.05); }
+        .card .val { font-size:32px; font-weight:bold; color:var(--p); }
+        #map { width:100%; height:65vh; border-radius:12px; }
+        @media (max-width:768px) { body{flex-direction:column;} .sidebar{width:100%; height:auto; flex-direction:row; overflow-x:auto;} .logo{display:none;} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <div class="logo"><i class="fas fa-tractor"></i> AgroNexo Pro</div>
-    <button class="nav-btn active" onclick="go('home')"><i class="fas fa-home"></i> Inicio</button>
-    <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map-marked-alt"></i> Mapa Híbrido</button>
-    <button class="nav-btn" onclick="go('ganaderia')"><i class="fas fa-cow"></i> Ganadería</button>
-    <button class="nav-btn" onclick="go('agricultura')"><i class="fas fa-seedling"></i> Agricultura</button>
-    <button class="nav-btn" onclick="go('lluvias')"><i class="fas fa-cloud-showers-heavy"></i> Lluvias</button>
+    <div class="logo">AgroNexo Pro</div>
+    <button class="nav-btn active" onclick="go('dash')"><i class="fas fa-chart-line"></i> Dashboard</button>
+    <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map-marked-alt"></i> Mapa</button>
+    <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Ganadería</button>
+    <button class="nav-btn" onclick="go('repo')"><i class="fas fa-file-export"></i> Reportes</button>
     <div style="flex:1"></div>
-    <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="nav-btn" style="color:#ef4444"><i class="fas fa-exclamation-triangle"></i> Resetear BD</a>
+    <div id="sync-status" style="font-size:11px; padding:10px; color:#aaa;">Sincronizado ✅</div>
 </div>
 
 <div class="main">
-    
-    <div id="home" class="view active">
-        <div class="weather-widget">
-            <div>
-                <div class="weather-temp" id="w-temp">--°C</div>
-                <div class="weather-loc"><i class="fas fa-map-marker-alt"></i> Los Frentones, Chaco</div>
-                <div id="w-desc" style="font-size:12px; margin-top:5px;">Cargando pronóstico...</div>
-            </div>
-            <i class="fas fa-sun" style="font-size:40px; opacity:0.8;"></i>
-        </div>
-
+    <div id="dash" class="view active">
         <div class="grid">
-            <div class="card"><div class="lbl">Hacienda Total</div><div class="num" id="k-ani">--</div></div>
-            <div class="card"><div class="lbl">Lotes Activos</div><div class="num" id="k-lot">--</div></div>
-            <div class="card"><div class="lbl">Registros Lluvia</div><div class="num" id="k-llu">--</div></div>
+            <div class="card"><h3>Posición de Caja</h3><div class="val" id="k-caja">$ --</div></div>
+            <div class="card"><h3>GDP Promedio</h3><div class="val">0.850 kg/d</div></div>
+            <div class="card" id="alert-s" style="display:none; border-top-color:var(--red);"><h3>Alertas Stock ⚠️</h3><div class="val" id="k-alert">--</div></div>
         </div>
     </div>
 
     <div id="mapa" class="view"><div id="map"></div></div>
 
-    <div id="ganaderia" class="view">
-        <div class="panel">
-            <div class="head-row"><h3>Rodeo (Braford/General)</h3><button class="btn-act pc-only" onclick="openM('m-ani')">+ Animal</button></div>
-            <div style="overflow-x:auto"><table><thead><tr><th>Caravana</th><th>Cat</th><th>Raza</th><th>Peso</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="t-ani"></tbody></table></div>
+    <div id="vaca" class="view">
+        <div class="card">
+            <h2>Manejo Individual (Braford)</h2>
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <input id="scan-id" placeholder="ID Caravana..." class="nav-btn" style="border:1px solid #ddd; color:var(--p)">
+                <button class="nav-btn" style="background:var(--a); color:white; width:auto;" onclick="pesar()">Registrar Peso</button>
+            </div>
         </div>
-        <button class="fab" onclick="openM('m-ani')">+</button>
     </div>
 
-    <div id="agricultura" class="view">
-        <div class="panel">
-            <div class="head-row"><h3>Lotes y Alquileres</h3><button class="btn-act pc-only" onclick="openM('m-lot')">+ Lote</button></div>
-            <div style="overflow-x:auto"><table><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Condición</th><th>Costo</th><th>Acción</th></tr></thead><tbody id="t-lot"></tbody></table></div>
+    <div id="repo" class="view">
+        <div class="card">
+            <h2>Exportar Gestión</h2>
+            <div style="margin-top:20px; display:flex; gap:15px;">
+                <button class="nav-btn" style="background:#1d6f42; color:white; width:auto;" onclick="expXL()">Excel (.xlsx)</button>
+                <button class="nav-btn" style="background:#b91c1c; color:white; width:auto;" onclick="expPDF()">PDF (.pdf)</button>
+            </div>
         </div>
-        <button class="fab" onclick="openM('m-lot')">+</button>
-    </div>
-
-    <div id="lluvias" class="view">
-        <div class="panel">
-            <div class="head-row"><h3>Registro Pluviométrico</h3><button class="btn-act pc-only" onclick="openM('m-llu')">+ Registro</button></div>
-            <div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Lote / Zona</th><th>Milímetros</th></tr></thead><tbody id="t-llu"></tbody></table></div>
-        </div>
-        <button class="fab" onclick="openM('m-llu')">+</button>
-    </div>
-
-</div>
-
-<div class="mob-nav">
-    <button class="mob-btn active" onclick="go('home')"><i class="fas fa-home"></i>Inicio</button>
-    <button class="mob-btn" onclick="go('mapa')"><i class="fas fa-map"></i>Mapa</button>
-    <button class="mob-btn" onclick="go('ganaderia')"><i class="fas fa-cow"></i>Vacas</button>
-    <button class="mob-btn" onclick="go('agricultura')"><i class="fas fa-seedling"></i>Lotes</button>
-</div>
-
-<div id="m-lot" class="overlay">
-    <div class="modal">
-        <h2>Nuevo Lote</h2>
-        <div class="form-group"><label>Nombre del Lote</label><input id="i-l-nom" class="form-input" placeholder="Ej: Lote Norte"></div>
-        <div class="form-row">
-            <div class="form-group"><label>Cultivo</label><select id="i-l-cul" class="form-input"><option>Soja</option><option>Maíz</option><option>Girasol</option><option>Sorgo</option><option>Barbecho</option></select></div>
-            <div class="form-group"><label>Hectáreas</label><input type="number" id="i-l-has" class="form-input"></div>
-        </div>
-        <div class="form-row">
-            <div class="form-group"><label>Condición</label><select id="i-l-con" class="form-input"><option>Propio</option><option>Alquilado</option><option>A Porcentaje</option></select></div>
-            <div class="form-group"><label>Costo/Alquiler</label><input type="number" id="i-l-cos" class="form-input" placeholder="0"></div>
-        </div>
-        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveLot()">Guardar Lote</button></div>
-    </div>
-</div>
-
-<div id="m-ani" class="overlay">
-    <div class="modal">
-        <h2>Nuevo Animal</h2>
-        <div class="form-group"><label>Caravana</label><input id="i-a-car" class="form-input" placeholder="Ej: BF-202"></div>
-        <div class="form-row">
-            <div class="form-group"><label>Categoría</label><select id="i-a-cat" class="form-input"><option>Vaca</option><option>Vaquillona</option><option>Ternero</option><option>Toro</option></select></div>
-            <div class="form-group"><label>Raza</label><select id="i-a-raz" class="form-input"><option>Braford</option><option>Brangus</option><option>Cruza</option></select></div>
-        </div>
-        <div class="form-row">
-            <div class="form-group"><label>Peso (kg)</label><input type="number" id="i-a-pes" class="form-input"></div>
-            <div class="form-group"><label>Estado</label><select id="i-a-est" class="form-input"><option>VACIA</option><option>PREÑADA</option><option>PARIDA</option><option>SERVICIO</option></select></div>
-        </div>
-        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveAni()">Guardar Animal</button></div>
-    </div>
-</div>
-
-<div id="m-llu" class="overlay">
-    <div class="modal">
-        <h2>Registrar Lluvia</h2>
-        <div class="form-group"><label>Lote / Zona Afectada</label><select id="i-r-lot" class="form-input"><option value="">General (Todo el campo)</option></select></div>
-        <div class="form-group"><label>Milímetros (mm)</label><input type="number" id="i-r-mm" class="form-input"></div>
-        <div class="form-group"><label>Notas</label><input id="i-r-not" class="form-input"></div>
-        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveRain()">Guardar Registro</button></div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const API = "https://agronexo-backend.onrender.com";
-    let map;
+const API = "https://agronexo-backend.onrender.com";
+let map;
 
-    window.onload = function() {
-        loadData();
-        getWeather();
-    };
+// PERSISTENCIA LOCAL
+const request = indexedDB.open("AgroNexoDB", 1);
+request.onupgradeneeded = e => { e.target.result.createObjectStore("sync", {keyPath:"id", autoIncrement:true}); };
 
-    function go(id) {
-        document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
-        document.querySelectorAll('.nav-btn, .mob-btn').forEach(e => e.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        // Activar botones (simple)
-        
-        if(id === 'mapa') setTimeout(() => { if(!map) initMap(); map.invalidateSize(); }, 200);
+function go(id){ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); document.getElementById(id).classList.add('active'); if(id==='mapa') setTimeout(initMap,200); }
+
+async function loadDash(){
+    const r = await (await fetch(`${API}/api/dashboard/full`)).json();
+    document.getElementById('k-caja').innerText = `$ ${r.financiero.caja.toLocaleString()}`;
+    if(r.operativo.alertas > 0){ document.getElementById('alert-s').style.display='block'; document.getElementById('k-alert').innerText = r.operativo.alertas; }
+}
+
+async function pesar(){
+    const id = document.getElementById('scan-id').value;
+    const peso = prompt("Peso (kg):");
+    const d = { caravana:id, peso:peso };
+    if(!navigator.onLine){
+        const db = await new Promise(res => { const req = indexedDB.open("AgroNexoDB",1); req.onsuccess = () => res(req.result); });
+        db.transaction("sync","readwrite").objectStore("sync").add({type:'PESO', data:d});
+        document.getElementById('sync-status').innerText = "Pendiente ⚠️";
+    } else {
+        await fetch(`${API}/api/ganaderia/pesada`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+        alert("Sincronizado ✅"); loadDash();
     }
+}
 
-    async function loadData() {
-        // Resumen
-        fetch(`${API}/api/resumen`).then(r=>r.json()).then(d=>{
-            document.getElementById('k-ani').innerText = d.animales;
-            document.getElementById('k-lot').innerText = d.lotes;
-            document.getElementById('k-llu').innerText = d.lluvias;
-        });
-
-        // Tablas
-        fillTable('lotes', 't-lot', x => `<td><b>${x.nombre}</b></td><td>${x.cultivo}</td><td>${x.has} has</td><td>${x.condicion}</td><td>${x.costo}</td><td><button class="btn-del" onclick="del('lotes',${x.id})"><i class="fas fa-trash"></i></button></td>`);
-        fillTable('animales', 't-ani', x => `<td><b>${x.caravana}</b></td><td>${x.cat}</td><td>${x.raza}</td><td>${x.peso}kg</td><td>${x.estado}</td><td><button class="btn-del" onclick="del('animales',${x.id})"><i class="fas fa-trash"></i></button></td>`);
-        fillTable('lluvias', 't-llu', x => `<td>${x.fecha}</td><td>${x.lote}</td><td><b>${x.mm} mm</b></td>`);
-        
-        // Llenar Select de Lotes para Lluvia
-        const lotes = await (await fetch(`${API}/api/lotes`)).json();
-        const sel = document.getElementById('i-r-lot');
-        sel.innerHTML = '<option value="">General (Todo el campo)</option>';
-        lotes.forEach(l => { sel.innerHTML += `<option value="${l.id}">${l.nombre}</option>`; });
+function initMap(){
+    if(!map){
+        map = L.map('map').setView([-26.42, -61.41], 13);
+        L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
     }
+    map.invalidateSize();
+}
 
-    async function fillTable(ep, id, fn) {
-        const d = await (await fetch(`${API}/api/${ep}`)).json();
-        document.getElementById(id).innerHTML = d.map(x => `<tr>${fn(x)}</tr>`).join('');
-    }
+async function expXL(){
+    const r = await (await fetch(`${API}/api/reportes/consolidado`)).json();
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.hacienda), "Hacienda");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.finanzas), "Finanzas");
+    XLSX.writeFile(wb, "AgroNexo_Expert.xlsx");
+}
 
-    async function del(ep, id) {
-        if(confirm("¿Seguro que deseas eliminar este registro?")) {
-            await fetch(`${API}/api/${ep}/${id}`, {method:'DELETE'});
-            loadData();
-        }
-    }
+async function expPDF(){
+    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    const r = await (await fetch(`${API}/api/reportes/consolidado`)).json();
+    doc.text("AgroNexo ERP - Informe Consolidado", 14, 20);
+    doc.autoTable({ startY:30, head:[['Fecha','Concepto','Monto']], body: r.finanzas.map(f=>[f.f, f.c, `$ ${f.m}`]) });
+    doc.save("AgroNexo_Informe.pdf");
+}
 
-    // MAPA HIBRIDO
-    async function initMap() {
-        map = L.map('map').setView([-26.42, -61.41], 13); // Centrado en Los Frentones aprox
-        L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:20, subdomains:['mt0','mt1','mt2','mt3'] }).addTo(map);
-
-        const pts = await (await fetch(`${API}/api/mapa`)).json();
-        pts.forEach(p => {
-            const c = p.color === 'red' ? '#ef4444' : (p.color === 'green' ? '#22c55e' : '#3b82f6');
-            L.circleMarker([p.lat, p.lng], { radius:8, fillColor:c, color:'white', weight:2, fillOpacity:1 })
-             .addTo(map).bindPopup(`<b>${p.titulo}</b><br>${p.desc}`);
-        });
-    }
-
-    // CLIMA REAL (Open-Meteo)
-    async function getWeather() {
-        try {
-            // Lat/Lon Los Frentones
-            const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-26.42&longitude=-61.41&current_weather=true');
-            const d = await r.json();
-            document.getElementById('w-temp').innerText = `${d.current_weather.temperature}°C`;
-            document.getElementById('w-desc').innerText = `Viento: ${d.current_weather.windspeed} km/h`;
-        } catch(e) { console.log("Error clima"); }
-    }
-
-    // MODALES Y GUARDADO
-    function openM(id) { document.getElementById(id).style.display = 'flex'; }
-    function closeM() { document.querySelectorAll('.overlay').forEach(e => e.style.display='none'); }
-
-    async function saveLot() {
-        const data = {
-            nombre: document.getElementById('i-l-nom').value,
-            cultivo: document.getElementById('i-l-cul').value,
-            has: document.getElementById('i-l-has').value,
-            condicion: document.getElementById('i-l-con').value,
-            costo: document.getElementById('i-l-cos').value,
-            lat: -26.42 - Math.random()/100, lng: -61.41 - Math.random()/100
-        };
-        post('lotes', data);
-    }
-
-    async function saveAni() {
-        const data = {
-            caravana: document.getElementById('i-a-car').value,
-            categoria: document.getElementById('i-a-cat').value,
-            raza: document.getElementById('i-a-raz').value,
-            peso: document.getElementById('i-a-pes').value,
-            estado: document.getElementById('i-a-est').value,
-            lat: -26.42 - Math.random()/100, lng: -61.41 - Math.random()/100
-        };
-        post('animales', data);
-    }
-
-    async function saveRain() {
-        const data = {
-            lote_id: document.getElementById('i-r-lot').value || null,
-            mm: document.getElementById('i-r-mm').value,
-            notas: document.getElementById('i-r-not').value
-        };
-        post('lluvias', data);
-    }
-
-    async function post(ep, data) {
-        await fetch(`${API}/api/${ep}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-        closeM(); alert("Guardado"); loadData();
-    }
+window.onload = loadDash;
 </script>
 </body>
 </html>
