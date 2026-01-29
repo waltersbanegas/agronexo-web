@@ -3,223 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo Full</title>
-    
+    <title>AgroNexo Pro</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
-        :root { --primary: #0f172a; --accent: #22c55e; --bg: #f1f5f9; --text: #1e293b; }
-        * { box-sizing: border_box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+        body { background:var(--bg); display:flex; height:100vh; overflow:hidden; }
+
+        /* MENU LATERAL */
+        .sidebar { width:240px; background:var(--p); color:white; padding:15px; display:flex; flex-direction:column; z-index:900; }
+        .logo { font-size:20px; font-weight:bold; color:var(--a); margin-bottom:30px; display:flex; gap:10px; align-items:center; }
+        .btn-nav { background:none; border:none; color:#cbd5e1; width:100%; padding:12px; text-align:left; cursor:pointer; display:flex; gap:10px; border-radius:8px; margin-bottom:5px; }
+        .btn-nav.active, .btn-nav:hover { background:#334155; color:white; border-left:4px solid var(--a); }
+
+        /* AREA PRINCIPAL */
+        .main { flex:1; padding:20px; overflow-y:auto; position:relative; }
+        .view { display:none; animation:fade 0.3s; }
+        .view.active { display:block; }
+
+        /* TARJETAS Y TABLAS */
+        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:15px; margin-bottom:20px; }
+        .card { background:white; padding:15px; border-radius:10px; border-top:4px solid var(--a); box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+        .card .num { font-size:28px; font-weight:bold; color:#1e293b; }
+        .card .lbl { font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; }
         
-        body { background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
-
-        /* --- SIDEBAR (Barra Lateral) --- */
-        .sidebar { 
-            width: 240px; background: var(--primary); color: white; display: flex; flex-direction: column; 
-            padding: 15px; flex-shrink: 0; z-index: 1000;
-        }
-        .logo { font-size: 20px; font-weight: bold; color: var(--accent); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .panel { background:white; border-radius:10px; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+        .header-panel { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+        .btn-add { background:var(--a); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; }
         
-        .nav-btn {
-            background: transparent; border: none; color: #cbd5e1; width: 100%; padding: 12px; text-align: left;
-            font-size: 14px; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 10px;
-            margin-bottom: 4px; transition: 0.2s;
-        }
-        .nav-btn:hover, .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--accent); }
+        table { width:100%; border-collapse:collapse; font-size:14px; }
+        th { text-align:left; background:#f1f5f9; padding:10px; color:#475569; }
+        td { padding:10px; border-bottom:1px solid #e2e8f0; }
 
-        /* --- MAIN (Contenido) --- */
-        .main { flex: 1; padding: 15px; overflow-y: auto; position: relative; }
+        /* MAPA */
+        #map { width:100%; height:75vh; border-radius:10px; }
 
-        /* --- PANELES --- */
-        .panel { display: none; }
-        .panel.active { display: block; animation: fadeIn 0.3s; }
+        /* MODALES (VENTANAS EMERGENTES) */
+        .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; justify-content:center; align-items:center; }
+        .modal { background:white; width:90%; max-width:400px; padding:25px; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+        .modal h2 { margin-bottom:20px; color:#1e293b; }
+        .form-group { margin-bottom:15px; }
+        .form-group label { display:block; font-size:13px; color:#64748b; margin-bottom:5px; }
+        .form-input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
+        .modal-btns { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+        .btn-cancel { background:#e2e8f0; color:#475569; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; }
         
-        /* Dashboard */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 3px solid var(--accent); }
-        .card h3 { font-size: 11px; color: #64748b; text-transform: uppercase; margin: 0 0 5px 0; }
-        .card .val { font-size: 24px; font-weight: bold; color: var(--text); }
-
-        /* Tablas */
-        .table-box { background: white; border-radius: 8px; padding: 15px; overflow-x: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        table { width: 100%; border-collapse: collapse; min-width: 300px; font-size: 13px; }
-        th { text-align: left; background: #f8fafc; padding: 10px; color: #64748b; }
-        td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
-
-        /* Botón Flotante para Móvil */
-        .fab { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; z-index: 2000; border: none; }
-
-        /* Mapa */
-        #map { height: 75vh; width: 100%; border-radius: 8px; }
-        .leaflet-tooltip { font-weight: bold; border: none; box-shadow: none; background: rgba(255,255,255,0.8); }
-
-        /* --- MÓVIL (SOLUCIÓN PANTALLA CORTADA) --- */
-        @media (max-width: 768px) {
-            body { flex-direction: column; } /* Cambia a vertical */
-            .sidebar { 
-                width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 10px; 
-                align-items: center; background: var(--primary); flex-shrink: 0; white-space: nowrap;
-            }
-            .logo { display: none; } /* Ocultar logo en móvil */
-            .nav-btn { 
-                width: auto; padding: 6px 12px; font-size: 12px; margin: 0 5px; 
-                border-left: none; border-bottom: 2px solid transparent; flex-direction: column; gap: 4px;
-            }
-            .nav-btn.active { border-left: none; border-bottom: 2px solid var(--accent); }
-            .nav-btn i { font-size: 16px; }
+        /* MOVIL */
+        .fab { position:fixed; bottom:20px; right:20px; width:56px; height:56px; background:var(--a); color:white; border-radius:50%; display:none; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:1500; border:none; }
+        @media (max-width:768px) {
+            body { flex-direction:column; }
+            .sidebar { width:100%; flex-direction:row; padding:10px; overflow-x:auto; white-space:nowrap; flex-shrink:0; align-items:center; }
+            .logo { display:none; }
+            .btn-nav { width:auto; padding:8px 15px; margin:0 5px; border-left:none; border-bottom:3px solid transparent; }
+            .btn-nav.active { border-bottom-color:var(--a); }
+            .fab { display:flex; } 
+            .btn-add { display:none; } /* Usa el FAB en movil */
         }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fade { from{opacity:0} to{opacity:1} }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="logo"><i class="fas fa-leaf"></i> AgroNexo</div>
-        <button class="nav-btn active" onclick="nav('home')"><i class="fas fa-home"></i> Inicio</button>
-        <button class="nav-btn" onclick="nav('mapa')"><i class="fas fa-map"></i> Mapa</button>
-        <button class="nav-btn" onclick="nav('ganaderia')"><i class="fas fa-cow"></i> Ganadería</button>
-        <button class="nav-btn" onclick="nav('agricultura')"><i class="fas fa-tractor"></i> Agricultura</button>
-        <button class="nav-btn" onclick="nav('lluvia')"><i class="fas fa-cloud-showers-heavy"></i> Lluvia</button>
-        <div style="flex:1"></div>
-        <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="nav-btn" style="color:#ef4444"><i class="fas fa-sync"></i> Reset</a>
+<div class="sidebar">
+    <div class="logo"><i class="fas fa-seedling"></i> AgroNexo</div>
+    <button class="btn-nav active" onclick="go('home')"><i class="fas fa-home"></i> Inicio</button>
+    <button class="btn-nav" onclick="go('mapa')"><i class="fas fa-map"></i> Mapa</button>
+    <button class="btn-nav" onclick="go('ganaderia')"><i class="fas fa-cow"></i> Ganadería</button>
+    <button class="btn-nav" onclick="go('agricultura')"><i class="fas fa-tractor"></i> Agricultura</button>
+    <button class="btn-nav" onclick="go('repro')"><i class="fas fa-venus-mars"></i> Reproducción</button>
+    <button class="btn-nav" onclick="go('lluvia')"><i class="fas fa-cloud"></i> Lluvia</button>
+    <div style="flex:1"></div>
+    <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="btn-nav" style="color:#ef4444"><i class="fas fa-sync"></i> Resetear</a>
+</div>
+
+<div class="main">
+    <div id="home" class="view active">
+        <div class="grid">
+            <div class="card"><div class="lbl">Hacienda</div><div class="num" id="k-ani">--</div></div>
+            <div class="card"><div class="lbl">Lotes</div><div class="num" id="k-lot">--</div></div>
+            <div class="card"><div class="lbl">Lluvia Reg.</div><div class="num" id="k-llu">--</div></div>
+        </div>
+        <div class="panel"><h3>Estado del Sistema</h3><p style="color:green; font-weight:bold; margin-top:5px;">🟢 ONLINE - Versión PRO v7.0</p></div>
     </div>
 
-    <div class="main">
-        
-        <div id="home" class="panel active">
-            <h2 style="margin-bottom:15px">Resumen General</h2>
-            <div class="kpi-grid">
-                <div class="card"><h3>Hacienda</h3><div class="val" id="kpi-animales">--</div></div>
-                <div class="card"><h3>Lotes</h3><div class="val" id="kpi-lotes">--</div></div>
-                <div class="card"><h3>Lluvia (Reg)</h3><div class="val" id="kpi-lluvias">--</div></div>
-            </div>
-            <div class="table-box">
-                <p>Sistema Operativo v6.0 - Conexión Satelital Activa</p>
-            </div>
-        </div>
+    <div id="mapa" class="view"><div id="map"></div></div>
 
-        <div id="mapa" class="panel">
-            <div id="map"></div>
+    <div id="ganaderia" class="view">
+        <div class="panel">
+            <div class="header-panel"><h3>Inventario Animal</h3><button class="btn-add" onclick="openM('m-ani')">+ Nuevo Animal</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Caravana</th><th>Cat</th><th>Estado</th></tr></thead><tbody id="t-ani"></tbody></table></div>
         </div>
-
-        <div id="ganaderia" class="panel">
-            <h2 style="margin-bottom:10px">Rodeo</h2>
-            <div class="table-box">
-                <table>
-                    <thead><tr><th>Caravana</th><th>Cat</th><th>Estado</th></tr></thead>
-                    <tbody id="list-ganaderia"></tbody>
-                </table>
-            </div>
-            <button class="fab" onclick="addAnimal()">+</button>
-        </div>
-
-        <div id="agricultura" class="panel">
-            <h2 style="margin-bottom:10px">Lotes</h2>
-            <div class="table-box">
-                <table><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody id="list-agricultura"></tbody></table>
-            </div>
-            <button class="fab" onclick="addLote()">+</button>
-        </div>
-
-        <div id="lluvia" class="panel">
-            <h2 style="margin-bottom:10px">Pluviómetro</h2>
-            <div class="table-box">
-                <table><thead><tr><th>Fecha</th><th>Milímetros</th></tr></thead><tbody id="list-lluvia"></tbody></table>
-            </div>
-            <button class="fab" onclick="addLluvia()">+</button>
-        </div>
-
+        <button class="fab" onclick="openM('m-ani')">+</button>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const API = "https://agronexo-backend.onrender.com";
-        let map = null;
+    <div id="agricultura" class="view">
+        <div class="panel">
+            <div class="header-panel"><h3>Lotes Agrícolas</h3><button class="btn-add" onclick="openM('m-lot')">+ Nuevo Lote</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody id="t-lot"></tbody></table></div>
+        </div>
+        <button class="fab" onclick="openM('m-lot')">+</button>
+    </div>
 
-        // Iniciar
-        window.onload = loadData;
+    <div id="repro" class="view">
+        <div class="panel">
+            <div class="header-panel"><h3>Eventos Reproductivos</h3><button class="btn-add" onclick="openM('m-rep')">+ Registrar Evento</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Animal</th><th>Evento</th><th>Resultado</th></tr></thead><tbody id="t-rep"></tbody></table></div>
+        </div>
+        <button class="fab" onclick="openM('m-rep')">+</button>
+    </div>
+    
+    <div id="lluvia" class="view">
+        <div class="panel">
+            <div class="header-panel"><h3>Registro Lluvias</h3><button class="btn-add" onclick="openM('m-llu')">+ Registrar</button></div>
+            <table><thead><tr><th>Fecha</th><th>Milímetros</th></tr></thead><tbody id="t-llu"></tbody></table>
+        </div>
+        <button class="fab" onclick="openM('m-llu')">+</button>
+    </div>
+</div>
 
-        // Navegación
-        function nav(id) {
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            event.currentTarget.classList.add('active');
+<div id="m-ani" class="overlay">
+    <div class="modal">
+        <h2>Nuevo Animal</h2>
+        <div class="form-group"><label>Caravana</label><input id="inp-ani-id" class="form-input" placeholder="Ej: RP-505"></div>
+        <div class="form-group"><label>Categoría</label>
+            <select id="inp-ani-cat" class="form-input"><option>Vaca</option><option>Vaquillona</option><option>Ternero</option><option>Toro</option></select>
+        </div>
+        <div class="form-group"><label>Estado</label>
+            <select id="inp-ani-est" class="form-input"><option>VACIA</option><option>PREÑADA</option><option>PARIDA</option></select>
+        </div>
+        <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-add" onclick="saveAni()">Guardar</button></div>
+    </div>
+</div>
 
-            if(id === 'mapa') {
-                setTimeout(() => {
-                    if(!map) initMap();
-                    map.invalidateSize(); // ARREGLA EL GRIS
-                }, 100);
-            }
-        }
+<div id="m-lot" class="overlay">
+    <div class="modal">
+        <h2>Nuevo Lote</h2>
+        <div class="form-group"><label>Nombre Lote</label><input id="inp-lot-nom" class="form-input"></div>
+        <div class="form-group"><label>Cultivo</label>
+            <select id="inp-lot-cul" class="form-input"><option>Soja</option><option>Maíz</option><option>Sorgo</option><option>Girasol</option><option>Barbecho</option></select>
+        </div>
+        <div class="form-group"><label>Hectáreas</label><input type="number" id="inp-lot-has" class="form-input"></div>
+        <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-add" onclick="saveLot()">Guardar</button></div>
+    </div>
+</div>
 
-        // Cargar Datos
-        async function loadData() {
-            try {
-                // Resumen
-                const res = await fetch(`${API}/api/resumen`);
-                const data = await res.json();
-                document.getElementById('kpi-animales').innerText = data.animales;
-                document.getElementById('kpi-lotes').innerText = data.lotes;
-                document.getElementById('kpi-lluvias').innerText = data.lluvias;
+<div id="m-rep" class="overlay">
+    <div class="modal">
+        <h2>Evento Reproductivo</h2>
+        <div class="form-group"><label>Caravana Animal</label><input id="inp-rep-id" class="form-input" placeholder="Ej: RP-101"></div>
+        <div class="form-group"><label>Tipo Evento</label>
+            <select id="inp-rep-tip" class="form-input"><option>TACTO</option><option>IATF</option><option>PARTO</option><option>SERVICIO</option></select>
+        </div>
+        <div class="form-group"><label>Resultado</label>
+            <select id="inp-rep-res" class="form-input"><option>-</option><option>PREÑADA</option><option>VACIA</option><option>MACHO</option><option>HEMBRA</option></select>
+        </div>
+        <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-add" onclick="saveRep()">Guardar</button></div>
+    </div>
+</div>
 
-                // Tablas
-                loadTable('ganaderia', 'list-ganaderia', i => `<td><b>${i.caravana}</b></td><td>${i.categoria}</td><td>${i.estado}</td>`);
-                loadTable('agricultura', 'list-agricultura', i => `<td>${i.nombre}</td><td>${i.cultivo}</td><td>${i.hectareas}</td>`);
-                loadTable('lluvia', 'list-lluvia', i => `<td>${i.fecha}</td><td><b>${i.mm} mm</b></td>`);
-                
-            } catch(e) { console.log("Cargando..."); }
-        }
+<div id="m-llu" class="overlay">
+    <div class="modal">
+        <h2>Cargar Lluvia</h2>
+        <div class="form-group"><label>Milímetros</label><input type="number" id="inp-llu-mm" class="form-input"></div>
+        <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-add" onclick="saveLlu()">Guardar</button></div>
+    </div>
+</div>
 
-        async function loadTable(ep, id, fmt) {
-            const res = await fetch(`${API}/api/${ep}`);
-            const list = await res.json();
-            const tbody = document.getElementById(id);
-            tbody.innerHTML = '';
-            list.forEach(i => tbody.innerHTML += `<tr>${fmt(i)}</tr>`);
-        }
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const API = "https://agronexo-backend.onrender.com";
+let map;
 
-        // Mapa
-        async function initMap() {
-            map = L.map('map').setView([-26.70, -60.80], 14);
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+window.onload = loadAll;
 
-            const res = await fetch(`${API}/api/mapa`);
-            const pts = await res.json();
-            
-            pts.forEach(p => {
-                const color = p.color === 'red' ? '#ef4444' : (p.color === 'green' ? '#22c55e' : '#3b82f6');
-                L.circleMarker([p.lat, p.lng], {
-                    radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 1
-                })
-                .addTo(map)
-                .bindTooltip(p.titulo, {permanent: true, direction: 'bottom', offset: [0, 5]}) // ETIQUETA PERMANENTE
-                .bindPopup(`<b>${p.titulo}</b><br>${p.desc}`);
-            });
-        }
+function go(id) {
+    document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
+    document.querySelectorAll('.btn-nav').forEach(e=>e.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+    if(id==='mapa' && map) setTimeout(()=>map.invalidateSize(), 200);
+}
 
-        // Acciones Rápidas
-        async function addAnimal() {
-            const id = prompt("Nro Caravana:");
-            if(id) post('ganaderia', {caravana:id, categoria:'Vaca', lat:-26.7-Math.random()/100, lng:-60.8-Math.random()/100});
-        }
-        async function addLote() {
-            const nom = prompt("Nombre Lote:");
-            if(nom) post('agricultura', {nombre:nom, cultivo:'Soja', hectareas:100, lat:-26.7-Math.random()/100, lng:-60.8-Math.random()/100});
-        }
-        async function addLluvia() {
-            const mm = prompt("Milímetros Caídos:");
-            if(mm) post('lluvia', {mm:mm, notas:'Manual'});
-        }
+// CARGA DATOS
+async function loadAll() {
+    // Resumen
+    fetch(`${API}/api/resumen`).then(r=>r.json()).then(d=>{
+        document.getElementById('k-ani').innerText=d.animales;
+        document.getElementById('k-lot').innerText=d.lotes;
+        document.getElementById('k-llu').innerText=d.lluvias;
+    });
+    // Tablas
+    fillTable('ganaderia', 't-ani', x=>`<td><b>${x.caravana}</b></td><td>${x.categoria}</td><td>${x.estado}</td>`);
+    fillTable('agricultura', 't-lot', x=>`<td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.hectareas}</td>`);
+    fillTable('lluvia', 't-llu', x=>`<td>${x.fecha}</td><td><b>${x.mm} mm</b></td>`);
+    fillTable('repro', 't-rep', x=>`<td>${x.fecha}</td><td><b>${x.animal}</b></td><td>${x.tipo}</td><td>${x.res}</td>`);
+    // Mapa
+    initMap();
+}
 
-        async function post(ep, data) {
-            await fetch(`${API}/api/${ep}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-            alert("Guardado");
-            loadData();
-        }
-    </script>
+async function fillTable(ep, id, fmt) {
+    const d = await (await fetch(`${API}/api/${ep}`)).json();
+    document.getElementById(id).innerHTML = d.map(x=>`<tr>${fmt(x)}</tr>`).join('');
+}
+
+// MAPA
+async function initMap() {
+    if(!map) {
+        map = L.map('map').setView([-26.70, -60.80], 14);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    }
+    const pts = await (await fetch(`${API}/api/mapa`)).json();
+    pts.forEach(p=>{
+        const c = p.color=='red'?'#ef4444':(p.color=='green'?'#22c55e':'#3b82f6');
+        L.circleMarker([p.lat, p.lng], {radius:8, fillColor:c, color:'white', weight:2, fillOpacity:1})
+         .addTo(map).bindTooltip(p.titulo, {permanent:true, direction:'bottom'}).bindPopup(p.desc);
+    });
+}
+
+// MODALES
+function openM(id) { document.getElementById(id).style.display='flex'; }
+function closeM() { document.querySelectorAll('.overlay').forEach(e=>e.style.display='none'); }
+
+// GUARDAR
+async function saveAni() {
+    const data = {
+        caravana: document.getElementById('inp-ani-id').value,
+        categoria: document.getElementById('inp-ani-cat').value,
+        estado: document.getElementById('inp-ani-est').value,
+        lat: -26.7 - Math.random()/100, lng: -60.8 - Math.random()/100
+    };
+    await post('ganaderia', data);
+}
+async function saveLot() {
+    const data = {
+        nombre: document.getElementById('inp-lot-nom').value,
+        cultivo: document.getElementById('inp-lot-cul').value,
+        has: document.getElementById('inp-lot-has').value,
+        lat: -26.705, lng: -60.805
+    };
+    await post('agricultura', data);
+}
+async function saveRep() {
+    await post('repro', {
+        caravana: document.getElementById('inp-rep-id').value,
+        tipo: document.getElementById('inp-rep-tip').value,
+        resultado: document.getElementById('inp-rep-res').value
+    });
+}
+async function saveLlu() {
+    await post('lluvia', { mm: document.getElementById('inp-llu-mm').value });
+}
+
+async function post(ep, data) {
+    await fetch(`${API}/api/${ep}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    closeM(); alert('Guardado Exitosamente'); loadAll();
+}
+</script>
 </body>
 </html>
