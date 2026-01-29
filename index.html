@@ -3,287 +3,303 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo V8 - Mapa Híbrido</title>
+    <title>AgroNexo Expert</title>
     
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
-        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; }
-        body { display:flex; height:100vh; overflow:hidden; background: var(--bg); }
+        :root { --p: #0f172a; --a: #22c55e; --bg: #f1f5f9; --del: #ef4444; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+        body { display:flex; height:100vh; overflow:hidden; background:var(--bg); }
 
-        /* MENU LATERAL (PC) */
-        .sidebar { 
-            width:250px; background:var(--p); color:white; display:flex; flex-direction:column; 
-            padding:15px; z-index:1000; flex-shrink:0; 
-        }
+        /* SIDEBAR */
+        .sidebar { width:250px; background:var(--p); color:white; padding:15px; display:flex; flex-direction:column; z-index:900; }
         .logo { font-size:22px; font-weight:bold; color:var(--a); margin-bottom:25px; display:flex; gap:10px; align-items:center; }
-        .btn-nav { 
-            background:transparent; border:none; color:#cbd5e1; width:100%; padding:12px; text-align:left; 
-            cursor:pointer; display:flex; gap:12px; border-radius:8px; margin-bottom:5px; font-size:15px; 
-            align-items:center; transition:0.2s;
-        }
-        .btn-nav:hover, .btn-nav.active { background:#334155; color:white; border-left:4px solid var(--a); }
-        .btn-nav i { width:20px; text-align:center; }
+        .nav-btn { background:transparent; border:none; color:#cbd5e1; width:100%; padding:12px; text-align:left; cursor:pointer; display:flex; gap:12px; border-radius:8px; margin-bottom:5px; align-items:center; }
+        .nav-btn:hover, .nav-btn.active { background:#334155; color:white; border-left:4px solid var(--a); }
 
-        /* AREA PRINCIPAL */
-        .main { flex:1; position:relative; overflow:hidden; display:flex; flex-direction:column; }
-        
-        /* VISTAS */
-        .view { flex:1; display:none; overflow-y:auto; padding:20px; position:relative; }
+        /* MAIN */
+        .main { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+        .view { flex:1; display:none; padding:20px; overflow-y:auto; }
         .view.active { display:block; }
         
-        /* ESTILO ESPECIAL PARA EL MAPA (Full Screen) */
-        #mapa.view { padding:0; } /* El mapa ocupa todo */
-        #map { width:100%; height:100%; }
+        /* WIDGET CLIMA */
+        .weather-widget { background: linear-gradient(135deg, #3b82f6, #2563eb); color:white; padding:20px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 10px rgba(37,99,235,0.2); }
+        .weather-temp { font-size:36px; font-weight:bold; }
+        .weather-loc { font-size:14px; opacity:0.9; }
 
-        /* TARJETAS KPI */
+        /* KPI CARDS */
         .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:20px; }
         .card { background:white; padding:20px; border-radius:10px; border-top:4px solid var(--a); box-shadow:0 2px 5px rgba(0,0,0,0.05); }
         .card .num { font-size:32px; font-weight:bold; color:#1e293b; }
-        .card .lbl { font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; margin-bottom:5px; }
+        .card .lbl { font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; }
 
-        /* TABLAS */
+        /* TABLAS Y PANELES */
         .panel { background:white; border-radius:10px; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-        .panel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
-        .btn-action { background:var(--a); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; }
-        
+        .head-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+        .btn-act { background:var(--a); color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold; }
+        .btn-del { background:none; border:none; color:var(--del); cursor:pointer; font-size:16px; }
+
         table { width:100%; border-collapse:collapse; font-size:14px; }
-        th { text-align:left; background:#f1f5f9; padding:12px; color:#475569; border-bottom:2px solid #e2e8f0; }
+        th { text-align:left; background:#f8fafc; padding:12px; border-bottom:2px solid #e2e8f0; color:#64748b; }
         td { padding:12px; border-bottom:1px solid #e2e8f0; }
 
-        /* MÓVIL (AJUSTES CRÍTICOS) */
-        .mobile-bar { display:none; }
+        /* MAPA */
+        #map { width:100%; height:100%; }
+        #mapa.view { padding:0; } /* Full screen */
+
+        /* MODALES */
+        .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; justify-content:center; align-items:center; }
+        .modal { background:white; width:95%; max-width:450px; padding:25px; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto; }
+        .form-row { display:flex; gap:10px; }
+        .form-group { margin-bottom:15px; flex:1; }
+        .form-group label { display:block; font-size:12px; font-weight:bold; color:#64748b; margin-bottom:5px; }
+        .form-input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; }
+        .modal-ft { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+
+        /* MÓVIL */
+        .mob-nav { display:none; }
+        .fab { display:none; position:fixed; bottom:80px; right:20px; width:56px; height:56px; background:var(--a); color:white; border-radius:50%; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:1500; border:none; }
         
         @media (max-width: 768px) {
             body { flex-direction:column; }
-            /* Sidebar se convierte en barra superior */
-            .sidebar { 
-                width:100%; height:60px; flex-direction:row; padding:0 10px; align-items:center; 
-                justify-content:space-between; overflow:hidden;
-            }
-            .logo { font-size:18px; margin:0; }
-            .btn-nav { display:none; } /* Ocultamos botones normales */
-            
-            /* Menú inferior para móvil */
-            .mobile-bar { 
-                display:flex; position:fixed; bottom:0; left:0; width:100%; height:60px; 
-                background:white; border-top:1px solid #e2e8f0; z-index:2000; justify-content:space-around; align-items:center;
-            }
-            .mob-btn { 
-                border:none; background:none; display:flex; flex-direction:column; align-items:center; 
-                color:#64748b; font-size:10px; gap:4px; width:100%; padding:8px 0;
-            }
-            .mob-btn i { font-size:20px; }
+            .sidebar { display:none; } /* Ocultar sidebar PC */
+            .main { margin-bottom:60px; }
+            .mob-nav { display:flex; position:fixed; bottom:0; width:100%; height:60px; background:white; border-top:1px solid #e2e8f0; z-index:2000; justify-content:space-around; align-items:center; }
+            .mob-btn { background:none; border:none; color:#64748b; display:flex; flex-direction:column; align-items:center; font-size:10px; gap:4px; }
             .mob-btn.active { color:var(--a); }
-            
-            .main { margin-bottom:60px; } /* Espacio para barra inferior */
-            .view { padding:15px; }
+            .mob-btn i { font-size:20px; }
+            .fab { display:flex; }
+            .pc-only { display:none; }
         }
-
-        /* MODALES */
-        .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; display:none; justify-content:center; align-items:center; }
-        .modal { background:white; width:90%; max-width:400px; padding:25px; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.3); }
-        .form-group { margin-bottom:15px; }
-        .form-group label { display:block; font-size:13px; color:#64748b; margin-bottom:5px; }
-        .form-input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:16px; } /* Letra grande para móvil */
-        .modal-btns { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
-        .btn-cancel { background:#e2e8f0; color:#475569; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; }
-
-        /* Botón Flotante (FAB) */
-        .fab { position:fixed; bottom:80px; right:20px; width:56px; height:56px; background:var(--a); color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 10px rgba(0,0,0,0.3); border:none; z-index:1500; cursor:pointer; }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="logo"><i class="fas fa-leaf"></i> AgroNexo</div>
-        <button class="btn-nav active" onclick="nav('home')"><i class="fas fa-home"></i> Inicio</button>
-        <button class="btn-nav" onclick="nav('mapa')"><i class="fas fa-map-marked-alt"></i> Mapa Híbrido</button>
-        <button class="btn-nav" onclick="nav('ganaderia')"><i class="fas fa-cow"></i> Ganadería</button>
-        <button class="btn-nav" onclick="nav('agricultura')"><i class="fas fa-tractor"></i> Agricultura</button>
-        <button class="btn-nav" onclick="nav('lluvia')"><i class="fas fa-cloud-showers-heavy"></i> Lluvias</button>
-        <div style="flex:1"></div>
-        <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="btn-nav" style="color:#ef4444"><i class="fas fa-trash"></i> Resetear Datos</a>
+<div class="sidebar">
+    <div class="logo"><i class="fas fa-tractor"></i> AgroNexo Pro</div>
+    <button class="nav-btn active" onclick="go('home')"><i class="fas fa-home"></i> Inicio</button>
+    <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map-marked-alt"></i> Mapa Híbrido</button>
+    <button class="nav-btn" onclick="go('ganaderia')"><i class="fas fa-cow"></i> Ganadería</button>
+    <button class="nav-btn" onclick="go('agricultura')"><i class="fas fa-seedling"></i> Agricultura</button>
+    <button class="nav-btn" onclick="go('lluvias')"><i class="fas fa-cloud-showers-heavy"></i> Lluvias</button>
+    <div style="flex:1"></div>
+    <a href="https://agronexo-backend.onrender.com/reset" target="_blank" class="nav-btn" style="color:#ef4444"><i class="fas fa-exclamation-triangle"></i> Resetear BD</a>
+</div>
+
+<div class="main">
+    
+    <div id="home" class="view active">
+        <div class="weather-widget">
+            <div>
+                <div class="weather-temp" id="w-temp">--°C</div>
+                <div class="weather-loc"><i class="fas fa-map-marker-alt"></i> Los Frentones, Chaco</div>
+                <div id="w-desc" style="font-size:12px; margin-top:5px;">Cargando pronóstico...</div>
+            </div>
+            <i class="fas fa-sun" style="font-size:40px; opacity:0.8;"></i>
+        </div>
+
+        <div class="grid">
+            <div class="card"><div class="lbl">Hacienda Total</div><div class="num" id="k-ani">--</div></div>
+            <div class="card"><div class="lbl">Lotes Activos</div><div class="num" id="k-lot">--</div></div>
+            <div class="card"><div class="lbl">Registros Lluvia</div><div class="num" id="k-llu">--</div></div>
+        </div>
     </div>
 
-    <div class="main">
+    <div id="mapa" class="view"><div id="map"></div></div>
+
+    <div id="ganaderia" class="view">
+        <div class="panel">
+            <div class="head-row"><h3>Rodeo (Braford/General)</h3><button class="btn-act pc-only" onclick="openM('m-ani')">+ Animal</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Caravana</th><th>Cat</th><th>Raza</th><th>Peso</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="t-ani"></tbody></table></div>
+        </div>
+        <button class="fab" onclick="openM('m-ani')">+</button>
+    </div>
+
+    <div id="agricultura" class="view">
+        <div class="panel">
+            <div class="head-row"><h3>Lotes y Alquileres</h3><button class="btn-act pc-only" onclick="openM('m-lot')">+ Lote</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Condición</th><th>Costo</th><th>Acción</th></tr></thead><tbody id="t-lot"></tbody></table></div>
+        </div>
+        <button class="fab" onclick="openM('m-lot')">+</button>
+    </div>
+
+    <div id="lluvias" class="view">
+        <div class="panel">
+            <div class="head-row"><h3>Registro Pluviométrico</h3><button class="btn-act pc-only" onclick="openM('m-llu')">+ Registro</button></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Lote / Zona</th><th>Milímetros</th></tr></thead><tbody id="t-llu"></tbody></table></div>
+        </div>
+        <button class="fab" onclick="openM('m-llu')">+</button>
+    </div>
+
+</div>
+
+<div class="mob-nav">
+    <button class="mob-btn active" onclick="go('home')"><i class="fas fa-home"></i>Inicio</button>
+    <button class="mob-btn" onclick="go('mapa')"><i class="fas fa-map"></i>Mapa</button>
+    <button class="mob-btn" onclick="go('ganaderia')"><i class="fas fa-cow"></i>Vacas</button>
+    <button class="mob-btn" onclick="go('agricultura')"><i class="fas fa-seedling"></i>Lotes</button>
+</div>
+
+<div id="m-lot" class="overlay">
+    <div class="modal">
+        <h2>Nuevo Lote</h2>
+        <div class="form-group"><label>Nombre del Lote</label><input id="i-l-nom" class="form-input" placeholder="Ej: Lote Norte"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Cultivo</label><select id="i-l-cul" class="form-input"><option>Soja</option><option>Maíz</option><option>Girasol</option><option>Sorgo</option><option>Barbecho</option></select></div>
+            <div class="form-group"><label>Hectáreas</label><input type="number" id="i-l-has" class="form-input"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Condición</label><select id="i-l-con" class="form-input"><option>Propio</option><option>Alquilado</option><option>A Porcentaje</option></select></div>
+            <div class="form-group"><label>Costo/Alquiler</label><input type="number" id="i-l-cos" class="form-input" placeholder="0"></div>
+        </div>
+        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveLot()">Guardar Lote</button></div>
+    </div>
+</div>
+
+<div id="m-ani" class="overlay">
+    <div class="modal">
+        <h2>Nuevo Animal</h2>
+        <div class="form-group"><label>Caravana</label><input id="i-a-car" class="form-input" placeholder="Ej: BF-202"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Categoría</label><select id="i-a-cat" class="form-input"><option>Vaca</option><option>Vaquillona</option><option>Ternero</option><option>Toro</option></select></div>
+            <div class="form-group"><label>Raza</label><select id="i-a-raz" class="form-input"><option>Braford</option><option>Brangus</option><option>Cruza</option></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Peso (kg)</label><input type="number" id="i-a-pes" class="form-input"></div>
+            <div class="form-group"><label>Estado</label><select id="i-a-est" class="form-input"><option>VACIA</option><option>PREÑADA</option><option>PARIDA</option><option>SERVICIO</option></select></div>
+        </div>
+        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveAni()">Guardar Animal</button></div>
+    </div>
+</div>
+
+<div id="m-llu" class="overlay">
+    <div class="modal">
+        <h2>Registrar Lluvia</h2>
+        <div class="form-group"><label>Lote / Zona Afectada</label><select id="i-r-lot" class="form-input"><option value="">General (Todo el campo)</option></select></div>
+        <div class="form-group"><label>Milímetros (mm)</label><input type="number" id="i-r-mm" class="form-input"></div>
+        <div class="form-group"><label>Notas</label><input id="i-r-not" class="form-input"></div>
+        <div class="modal-ft"><button class="btn-del" onclick="closeM()">Cancelar</button><button class="btn-act" onclick="saveRain()">Guardar Registro</button></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const API = "https://agronexo-backend.onrender.com";
+    let map;
+
+    window.onload = function() {
+        loadData();
+        getWeather();
+    };
+
+    function go(id) {
+        document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
+        document.querySelectorAll('.nav-btn, .mob-btn').forEach(e => e.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        // Activar botones (simple)
         
-        <div id="home" class="view active">
-            <h2 style="margin-bottom:20px; color:#1e293b;">Resumen del Establecimiento</h2>
-            <div class="grid">
-                <div class="card"><div class="lbl">Hacienda</div><div class="num" id="k-ani">--</div></div>
-                <div class="card"><div class="lbl">Lotes</div><div class="num" id="k-lot">--</div></div>
-                <div class="card"><div class="lbl">Registros Lluvia</div><div class="num" id="k-llu">--</div></div>
-            </div>
-            <div class="panel">
-                <p>🟢 Sistema conectado. Base de datos operativa.</p>
-            </div>
-        </div>
+        if(id === 'mapa') setTimeout(() => { if(!map) initMap(); map.invalidateSize(); }, 200);
+    }
 
-        <div id="mapa" class="view">
-            <div id="map"></div>
-        </div>
+    async function loadData() {
+        // Resumen
+        fetch(`${API}/api/resumen`).then(r=>r.json()).then(d=>{
+            document.getElementById('k-ani').innerText = d.animales;
+            document.getElementById('k-lot').innerText = d.lotes;
+            document.getElementById('k-llu').innerText = d.lluvias;
+        });
 
-        <div id="ganaderia" class="view">
-            <div class="panel">
-                <div class="panel-head"><h3>Rodeo</h3><button class="btn-action pc-only" onclick="openM('m-ani')">+ Animal</button></div>
-                <div style="overflow-x:auto"><table><thead><tr><th>Caravana</th><th>Cat</th><th>Estado</th></tr></thead><tbody id="t-ani"></tbody></table></div>
-            </div>
-            <button class="fab" onclick="openM('m-ani')">+</button>
-        </div>
+        // Tablas
+        fillTable('lotes', 't-lot', x => `<td><b>${x.nombre}</b></td><td>${x.cultivo}</td><td>${x.has} has</td><td>${x.condicion}</td><td>${x.costo}</td><td><button class="btn-del" onclick="del('lotes',${x.id})"><i class="fas fa-trash"></i></button></td>`);
+        fillTable('animales', 't-ani', x => `<td><b>${x.caravana}</b></td><td>${x.cat}</td><td>${x.raza}</td><td>${x.peso}kg</td><td>${x.estado}</td><td><button class="btn-del" onclick="del('animales',${x.id})"><i class="fas fa-trash"></i></button></td>`);
+        fillTable('lluvias', 't-llu', x => `<td>${x.fecha}</td><td>${x.lote}</td><td><b>${x.mm} mm</b></td>`);
+        
+        // Llenar Select de Lotes para Lluvia
+        const lotes = await (await fetch(`${API}/api/lotes`)).json();
+        const sel = document.getElementById('i-r-lot');
+        sel.innerHTML = '<option value="">General (Todo el campo)</option>';
+        lotes.forEach(l => { sel.innerHTML += `<option value="${l.id}">${l.nombre}</option>`; });
+    }
 
-        <div id="agricultura" class="view">
-            <div class="panel">
-                <div class="panel-head"><h3>Lotes</h3><button class="btn-action pc-only" onclick="openM('m-lot')">+ Lote</button></div>
-                <div style="overflow-x:auto"><table><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody id="t-lot"></tbody></table></div>
-            </div>
-            <button class="fab" onclick="openM('m-lot')">+</button>
-        </div>
+    async function fillTable(ep, id, fn) {
+        const d = await (await fetch(`${API}/api/${ep}`)).json();
+        document.getElementById(id).innerHTML = d.map(x => `<tr>${fn(x)}</tr>`).join('');
+    }
 
-        <div id="lluvia" class="view">
-            <div class="panel">
-                <div class="panel-head"><h3>Pluviómetro</h3><button class="btn-action pc-only" onclick="openM('m-llu')">+ Registro</button></div>
-                <div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Milímetros</th></tr></thead><tbody id="t-llu"></tbody></table></div>
-            </div>
-            <button class="fab" onclick="openM('m-llu')">+</button>
-        </div>
-
-    </div>
-
-    <div class="mobile-bar">
-        <button class="mob-btn active" onclick="nav('home')"><i class="fas fa-home"></i>Inicio</button>
-        <button class="mob-btn" onclick="nav('mapa')"><i class="fas fa-map"></i>Mapa</button>
-        <button class="mob-btn" onclick="nav('ganaderia')"><i class="fas fa-cow"></i>Hacienda</button>
-        <button class="mob-btn" onclick="nav('agricultura')"><i class="fas fa-tractor"></i>Lotes</button>
-    </div>
-
-    <div id="m-ani" class="overlay">
-        <div class="modal">
-            <h2>Nuevo Animal</h2>
-            <div class="form-group"><label>Caravana</label><input id="i-ani-id" class="form-input" placeholder="Ej: RP-104"></div>
-            <div class="form-group"><label>Categoría</label>
-                <select id="i-ani-cat" class="form-input"><option>Vaca</option><option>Vaquillona</option><option>Ternero</option><option>Toro</option></select>
-            </div>
-            <div class="form-group"><label>Estado Reproductivo</label>
-                <select id="i-ani-est" class="form-input"><option>VACIA</option><option>PREÑADA</option><option>PARIDA</option></select>
-            </div>
-            <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-action" onclick="save('ganaderia')">Guardar</button></div>
-        </div>
-    </div>
-
-    <div id="m-lot" class="overlay">
-        <div class="modal">
-            <h2>Nuevo Lote</h2>
-            <div class="form-group"><label>Nombre</label><input id="i-lot-nom" class="form-input" placeholder="Ej: Lote Norte"></div>
-            <div class="form-group"><label>Cultivo</label>
-                <select id="i-lot-cul" class="form-input"><option>Soja</option><option>Maíz</option><option>Girasol</option><option>Sorgo</option><option>Barbecho</option></select>
-            </div>
-            <div class="form-group"><label>Hectáreas</label><input type="number" id="i-lot-has" class="form-input"></div>
-            <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-action" onclick="save('agricultura')">Guardar</button></div>
-        </div>
-    </div>
-
-    <div id="m-llu" class="overlay">
-        <div class="modal">
-            <h2>Registrar Lluvia</h2>
-            <div class="form-group"><label>Milímetros (mm)</label><input type="number" id="i-llu-mm" class="form-input"></div>
-            <div class="modal-btns"><button class="btn-cancel" onclick="closeM()">Cancelar</button><button class="btn-action" onclick="save('lluvia')">Guardar</button></div>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const API = "https://agronexo-backend.onrender.com";
-        let map;
-
-        window.onload = init;
-
-        function nav(id) {
-            // Activar Vistas
-            document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            
-            // Activar Botones (PC y Móvil)
-            document.querySelectorAll('.btn-nav, .mob-btn').forEach(e => e.classList.remove('active'));
-            // Busca los botones que llaman a esta funcion y actívalos (simplificado)
-            
-            if(id === 'mapa' && map) setTimeout(() => map.invalidateSize(), 200);
+    async function del(ep, id) {
+        if(confirm("¿Seguro que deseas eliminar este registro?")) {
+            await fetch(`${API}/api/${ep}/${id}`, {method:'DELETE'});
+            loadData();
         }
+    }
 
-        async function init() {
-            // Cargar KPIs
-            fetch(`${API}/api/resumen`).then(r=>r.json()).then(d=>{
-                document.getElementById('k-ani').innerText = d.animales;
-                document.getElementById('k-lot').innerText = d.lotes;
-                document.getElementById('k-llu').innerText = d.lluvias;
-            });
-            
-            // Cargar Tablas
-            fillT('ganaderia', 't-ani', x=>`<td><b>${x.caravana}</b></td><td>${x.categoria}</td><td>${x.estado}</td>`);
-            fillT('agricultura', 't-lot', x=>`<td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.hectareas} Has</td>`);
-            fillT('lluvia', 't-llu', x=>`<td>${x.fecha}</td><td><b>${x.mm} mm</b></td>`);
+    // MAPA HIBRIDO
+    async function initMap() {
+        map = L.map('map').setView([-26.42, -61.41], 13); // Centrado en Los Frentones aprox
+        L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:20, subdomains:['mt0','mt1','mt2','mt3'] }).addTo(map);
 
-            // INICIAR MAPA HÍBRIDO (GOOGLE)
-            if(!map) {
-                map = L.map('map').setView([-26.70, -60.80], 13);
-                
-                // CAPA GOOGLE HYBRID (Satélite + Nombres)
-                L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-                    maxZoom: 20,
-                    subdomains:['mt0','mt1','mt2','mt3']
-                }).addTo(map);
-            }
+        const pts = await (await fetch(`${API}/api/mapa`)).json();
+        pts.forEach(p => {
+            const c = p.color === 'red' ? '#ef4444' : (p.color === 'green' ? '#22c55e' : '#3b82f6');
+            L.circleMarker([p.lat, p.lng], { radius:8, fillColor:c, color:'white', weight:2, fillOpacity:1 })
+             .addTo(map).bindPopup(`<b>${p.titulo}</b><br>${p.desc}`);
+        });
+    }
 
-            // Cargar Puntos en Mapa
-            const pts = await (await fetch(`${API}/api/mapa`)).json();
-            pts.forEach(p => {
-                const color = p.color=='red'?'#ef4444':(p.color=='green'?'#22c55e':'#3b82f6');
-                L.circleMarker([p.lat, p.lng], {
-                    radius: 8, fillColor: color, color: "white", weight: 2, fillOpacity: 1
-                })
-                .addTo(map)
-                .bindTooltip(`<b>${p.titulo}</b>`, {permanent:true, direction:'bottom', className: 'map-label'})
-                .bindPopup(`<b>${p.titulo}</b><br>${p.desc}`);
-            });
-        }
+    // CLIMA REAL (Open-Meteo)
+    async function getWeather() {
+        try {
+            // Lat/Lon Los Frentones
+            const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-26.42&longitude=-61.41&current_weather=true');
+            const d = await r.json();
+            document.getElementById('w-temp').innerText = `${d.current_weather.temperature}°C`;
+            document.getElementById('w-desc').innerText = `Viento: ${d.current_weather.windspeed} km/h`;
+        } catch(e) { console.log("Error clima"); }
+    }
 
-        async function fillT(ep, id, fn) {
-            const data = await (await fetch(`${API}/api/${ep}`)).json();
-            document.getElementById(id).innerHTML = data.map(x => `<tr>${fn(x)}</tr>`).join('');
-        }
+    // MODALES Y GUARDADO
+    function openM(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeM() { document.querySelectorAll('.overlay').forEach(e => e.style.display='none'); }
 
-        // Modales
-        function openM(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeM() { document.querySelectorAll('.overlay').forEach(e => e.style.display='none'); }
+    async function saveLot() {
+        const data = {
+            nombre: document.getElementById('i-l-nom').value,
+            cultivo: document.getElementById('i-l-cul').value,
+            has: document.getElementById('i-l-has').value,
+            condicion: document.getElementById('i-l-con').value,
+            costo: document.getElementById('i-l-cos').value,
+            lat: -26.42 - Math.random()/100, lng: -61.41 - Math.random()/100
+        };
+        post('lotes', data);
+    }
 
-        // Guardar Datos
-        async function save(type) {
-            let data = {};
-            if(type==='ganaderia') {
-                data = {
-                    caravana: document.getElementById('i-ani-id').value,
-                    categoria: document.getElementById('i-ani-cat').value,
-                    estado: document.getElementById('i-ani-est').value,
-                    lat: -26.70 - Math.random()/100, lng: -60.80 - Math.random()/100 // Ubicación simulada cerca
-                };
-            } else if(type==='agricultura') {
-                data = {
-                    nombre: document.getElementById('i-lot-nom').value,
-                    cultivo: document.getElementById('i-lot-cul').value,
-                    has: document.getElementById('i-lot-has').value,
-                    lat: -26.705, lng: -60.805
-                };
-            } else if(type==='lluvia') {
-                data = { mm: document.getElementById('i-llu-mm').value };
-            }
+    async function saveAni() {
+        const data = {
+            caravana: document.getElementById('i-a-car').value,
+            categoria: document.getElementById('i-a-cat').value,
+            raza: document.getElementById('i-a-raz').value,
+            peso: document.getElementById('i-a-pes').value,
+            estado: document.getElementById('i-a-est').value,
+            lat: -26.42 - Math.random()/100, lng: -61.41 - Math.random()/100
+        };
+        post('animales', data);
+    }
 
-            await fetch(`${API}/api/${type}`, {
-                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
-            });
-            closeM(); alert('Guardado!'); init();
-        }
-    </script>
+    async function saveRain() {
+        const data = {
+            lote_id: document.getElementById('i-r-lot').value || null,
+            mm: document.getElementById('i-r-mm').value,
+            notas: document.getElementById('i-r-not').value
+        };
+        post('lluvias', data);
+    }
+
+    async function post(ep, data) {
+        await fetch(`${API}/api/${ep}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+        closeM(); alert("Guardado"); loadData();
+    }
+</script>
 </body>
 </html>
