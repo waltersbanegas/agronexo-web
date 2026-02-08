@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_pro.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v12.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -39,6 +39,7 @@ def resumen():
         "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0
     })
 
+# Manejo de Ganadería
 @app.route('/api/ganaderia', methods=['GET', 'POST'])
 def handle_ganaderia():
     if request.method == 'POST':
@@ -48,6 +49,7 @@ def handle_ganaderia():
         return jsonify({"status": "ok"})
     return jsonify([{"id": a.id, "caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
 
+# Manejo de Lotes
 @app.route('/api/lotes', methods=['GET', 'POST'])
 def handle_lotes():
     if request.method == 'POST':
@@ -57,6 +59,7 @@ def handle_lotes():
         return jsonify({"status": "ok"})
     return jsonify([{"id": l.id, "nombre": l.nombre, "cultivo": l.cultivo, "has": l.has} for l in Lote.query.all()])
 
+# Manejo de Lluvias
 @app.route('/api/lluvias', methods=['GET', 'POST'])
 def handle_lluvias():
     if request.method == 'POST':
@@ -66,23 +69,30 @@ def handle_lluvias():
         return jsonify({"status": "ok"})
     return jsonify([{"id": ll.id, "mm": ll.mm, "fecha": ll.fecha} for ll in Lluvia.query.all()])
 
-# --- ACCIONES DE EDICIÓN Y BORRADO ---
+# --- ACCIONES DE EDICIÓN Y BORRADO (PARA TODAS LAS SECCIONES) ---
 @app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
 def acciones(modulo, id):
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
     item = modelos[modulo].query.get_or_404(id)
+    
     if request.method == 'DELETE':
         db.session.delete(item)
     else:
         d = request.json
-        for key, value in d.items(): setattr(item, key, value)
+        if modulo == 'ganaderia':
+            item.caravana = d.get('caravana', item.caravana)
+            item.peso = d.get('peso', item.peso)
+            item.estado = d.get('estado', item.estado)
+        elif modulo == 'lotes':
+            item.nombre = d.get('nombre', item.nombre)
+            item.cultivo = d.get('cultivo', item.cultivo)
+            item.has = d.get('has', item.has)
+        elif modulo == 'lluvias':
+            item.mm = d.get('mm', item.mm)
+            item.fecha = d.get('fecha', item.fecha)
+            
     db.session.commit()
     return jsonify({"status": "ok"})
-
-@app.route('/reset')
-def reset():
-    db.drop_all(); db.create_all()
-    return "SISTEMA AGROPECUARIO V.PRO ACTIVADO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
