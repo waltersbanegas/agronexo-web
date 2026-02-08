@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgroNexo ERP</title>
+    <title>AgroNexo V11.1</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
@@ -16,6 +16,7 @@
         .view.active { display: block; }
         .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 4px solid var(--a); }
+        .btn-add { background: var(--a); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 10px; overflow: hidden; }
         th { background: #f1f5f9; padding: 12px; text-align: left; }
         td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
@@ -33,26 +34,35 @@
 
 <div class="main">
     <div id="inicio" class="view active">
-        <h1>Dashboard</h1>
+        <h1>Resumen</h1>
         <div class="card-grid">
-            <div class="card"><h4>Caja</h4><div id="c-caja">$ --</div></div>
             <div class="card"><h4>Hacienda</h4><div id="c-vaca">--</div></div>
+            <div class="card"><h4>Lotes</h4><div id="c-lot">--</div></div>
             <div class="card"><h4>Lluvias</h4><div id="c-lluvia">-- mm</div></div>
         </div>
     </div>
 
     <div id="vaca" class="view">
-        <h2>Rodeo Braford</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Ganadería</h2>
+            <button class="btn-add" onclick="nuevoAnimal()">+ Nuevo Animal</button>
+        </div>
         <table id="t-vaca"><thead><tr><th>Caravana</th><th>Peso</th><th>Estado</th></tr></thead><tbody></tbody></table>
     </div>
 
     <div id="lote" class="view">
-        <h2>Agricultura</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Agricultura</h2>
+            <button class="btn-add" onclick="nuevoLote()">+ Nuevo Lote</button>
+        </div>
         <table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody></tbody></table>
     </div>
 
     <div id="lluvia" class="view">
-        <h2>Pluviómetro</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Lluvia</h2>
+            <button class="btn-add" onclick="nuevaLluvia()">+ Cargar Milímetros</button>
+        </div>
         <table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th></tr></thead><tbody></tbody></table>
     </div>
 </div>
@@ -68,23 +78,61 @@
     }
 
     async function loadData(view) {
-        try {
-            if(view === 'inicio') {
-                const r = await fetch(`${API}/api/resumen`).then(res => res.json());
-                document.getElementById('c-caja').innerText = `$ ${r.caja}`;
-                document.getElementById('c-vaca').innerText = r.hacienda;
-                document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
-            } else if(view === 'vaca') {
-                const d = await fetch(`${API}/api/ganaderia`).then(res => res.json());
-                document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `<tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td></tr>`).join('');
-            } else if(view === 'lote') {
-                const d = await fetch(`${API}/api/lotes`).then(res => res.json());
-                document.querySelector('#t-lote tbody').innerHTML = d.map(x => `<tr><td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.has}</td></tr>`).join('');
-            } else if(view === 'lluvia') {
-                const d = await fetch(`${API}/api/lluvias`).then(res => res.json());
-                document.querySelector('#t-lluvia tbody').innerHTML = d.map(x => `<tr><td>${x.fecha}</td><td>${x.mm}</td></tr>`).join('');
-            }
-        } catch (e) { console.error("Error cargando datos:", e); }
+        if(view === 'inicio') {
+            const r = await fetch(`${API}/api/resumen`).then(res => res.json());
+            document.getElementById('c-vaca').innerText = r.hacienda;
+            document.getElementById('c-lot').innerText = r.lotes;
+            document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
+        } else if(view === 'vaca') {
+            const d = await fetch(`${API}/api/ganaderia`).then(res => res.json());
+            document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `<tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td></tr>`).join('');
+        } else if(view === 'lote') {
+            const d = await fetch(`${API}/api/lotes`).then(res => res.json());
+            document.querySelector('#t-lote tbody').innerHTML = d.map(x => `<tr><td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.has}</td></tr>`).join('');
+        } else if(view === 'lluvia') {
+            const d = await fetch(`${API}/api/lluvias`).then(res => res.json());
+            document.querySelector('#t-lluvia tbody').innerHTML = d.map(x => `<tr><td>${x.fecha}</td><td>${x.mm}</td></tr>`).join('');
+        }
+    }
+
+    async function nuevoAnimal() {
+        const id = prompt("Caravana:");
+        const peso = prompt("Peso (kg):");
+        const est = prompt("Estado (VACIA/PREÑADA/PARIDA):");
+        if(id && peso) {
+            await fetch(`${API}/api/ganaderia`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({caravana: id, peso: peso, estado: est})
+            });
+            loadData('vaca');
+        }
+    }
+
+    async function nuevaLluvia() {
+        const mm = prompt("Milímetros registrados:");
+        if(mm) {
+            await fetch(`${API}/api/lluvias`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mm: mm})
+            });
+            loadData('lluvia');
+        }
+    }
+
+    async function nuevoLote() {
+        const nom = prompt("Nombre del lote:");
+        const cul = prompt("Cultivo:");
+        const has = prompt("Hectáreas:");
+        if(nom) {
+            await fetch(`${API}/api/lotes`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({nombre: nom, cultivo: cul, has: has})
+            });
+            loadData('lote');
+        }
     }
 
     window.onload = () => loadData('inicio');
