@@ -2,16 +2,17 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import func
 
 app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v11.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v12.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS INTEGRADOS
+# MODELOS DE DATOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -29,15 +30,17 @@ class Lluvia(db.Model):
     mm = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
-# ENDPOINTS DE GESTIÓN
+# --- RUTAS DE GESTIÓN ---
+
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
-        "lluvias": db.session.query(db.func.sum(Lluvia.mm)).scalar() or 0
+        "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0
     })
 
+# GANADERÍA
 @app.route('/api/ganaderia', methods=['GET', 'POST'])
 def handle_ganaderia():
     if request.method == 'POST':
@@ -45,8 +48,22 @@ def handle_ganaderia():
         db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
         db.session.commit()
         return jsonify({"status": "ok"})
-    return jsonify([{"caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
+    return jsonify([{"id": a.id, "caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
 
+@app.route('/api/ganaderia/<int:id>', methods=['PUT', 'DELETE'])
+def edit_delete_animal(id):
+    item = Animal.query.get_or_404(id)
+    if request.method == 'DELETE':
+        db.session.delete(item)
+    else:
+        d = request.json
+        item.caravana = d.get('caravana', item.caravana)
+        item.peso = d.get('peso', item.peso)
+        item.estado = d.get('estado', item.estado)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+# LOTES
 @app.route('/api/lotes', methods=['GET', 'POST'])
 def handle_lotes():
     if request.method == 'POST':
@@ -54,8 +71,22 @@ def handle_lotes():
         db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has']))
         db.session.commit()
         return jsonify({"status": "ok"})
-    return jsonify([{"nombre": l.nombre, "cultivo": l.cultivo, "has": l.has} for l in Lote.query.all()])
+    return jsonify([{"id": l.id, "nombre": l.nombre, "cultivo": l.cultivo, "has": l.has} for l in Lote.query.all()])
 
+@app.route('/api/lotes/<int:id>', methods=['PUT', 'DELETE'])
+def edit_delete_lote(id):
+    item = Lote.query.get_or_404(id)
+    if request.method == 'DELETE':
+        db.session.delete(item)
+    else:
+        d = request.json
+        item.nombre = d.get('nombre', item.nombre)
+        item.cultivo = d.get('cultivo', item.cultivo)
+        item.has = d.get('has', item.has)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+# LLUVIAS
 @app.route('/api/lluvias', methods=['GET', 'POST'])
 def handle_lluvias():
     if request.method == 'POST':
@@ -63,12 +94,17 @@ def handle_lluvias():
         db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
         db.session.commit()
         return jsonify({"status": "ok"})
-    return jsonify([{"mm": l.mm, "fecha": l.fecha} for l in Lluvia.query.all()])
+    return jsonify([{"id": ll.id, "mm": ll.mm, "fecha": ll.fecha} for ll in Lluvia.query.all()])
 
-@app.route('/reset')
-def reset():
-    db.drop_all(); db.create_all()
-    return "SISTEMA REESTABLECIDO"
+@app.route('/api/lluvias/<int:id>', methods=['PUT', 'DELETE'])
+def edit_delete_lluvia(id):
+    item = Lluvia.query.get_or_404(id)
+    if request.method == 'DELETE':
+        db.session.delete(item)
+    else:
+        item.mm = request.json.get('mm', item.mm)
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()

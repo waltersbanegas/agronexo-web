@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgroNexo Expert</title>
+    <title>AgroNexo Pro V12</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
         :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
         body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
-        .sidebar { width: 250px; background: var(--p); color: white; padding: 20px; display: flex; flex-direction: column; flex-shrink: 0; }
+        .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; display: flex; flex-direction: column; flex-shrink: 0; }
         .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; margin-bottom: 5px; }
         .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--a); }
         .main { flex: 1; overflow-y: auto; padding: 25px; }
@@ -18,6 +21,8 @@
         .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid var(--a); }
         .btn-add { background: var(--a); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-excel { background: #1d6f42; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-right: 5px; }
+        .btn-pdf { background: #b91c1c; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 10px; overflow: hidden; }
         th { background: #f1f5f9; padding: 12px; text-align: left; }
         td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
@@ -30,7 +35,7 @@
 <div class="sidebar">
     <h2 style="color:var(--a)">AgroNexo</h2>
     <button class="nav-btn active" onclick="go('inicio')"><i class="fas fa-home"></i> Inicio</button>
-    <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map"></i> Mapa</button>
+    <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map-marked-alt"></i> Mapa</button>
     <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Ganadería</button>
     <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
     <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
@@ -38,11 +43,11 @@
 
 <div class="main">
     <div id="inicio" class="view active">
-        <h1>Dashboard</h1>
+        <h1>Dashboard General</h1>
         <div class="card-grid">
             <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size: 24px; font-weight: bold;">--</div></div>
             <div class="card"><h4>Lotes</h4><div id="c-lot" style="font-size: 24px; font-weight: bold;">--</div></div>
-            <div class="card"><h4>Lluvia Tot.</h4><div id="c-lluvia" style="font-size: 24px; font-weight: bold;">-- mm</div></div>
+            <div class="card"><h4>Lluvia Anual</h4><div id="c-lluvia" style="font-size: 24px; font-weight: bold;">-- mm</div></div>
         </div>
     </div>
 
@@ -50,26 +55,36 @@
 
     <div id="vaca" class="view">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Rodeo Braford</h2>
-            <button class="btn-add" onclick="guardarAnimal()">+ Nuevo Animal</button>
+            <h2>Hacienda Braford</h2>
+            <div>
+                <button class="btn-excel" onclick="exportar('vaca', 'excel')"><i class="fas fa-file-excel"></i></button>
+                <button class="btn-pdf" onclick="exportar('vaca', 'pdf')"><i class="fas fa-file-pdf"></i></button>
+                <button class="btn-add" onclick="nuevo('vaca')">+ Nuevo</button>
+            </div>
         </div>
-        <table id="t-vaca"><thead><tr><th>Caravana</th><th>Peso</th><th>Estado</th></tr></thead><tbody></tbody></table>
+        <table id="t-vaca"><thead><tr><th>Caravana</th><th>Peso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table>
     </div>
 
     <div id="lote" class="view">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2>Agricultura</h2>
-            <button class="btn-add" onclick="guardarLote()">+ Nuevo Lote</button>
+            <div>
+                <button class="btn-excel" onclick="exportar('lotes', 'excel')"><i class="fas fa-file-excel"></i></button>
+                <button class="btn-add" onclick="nuevo('lote')">+ Nuevo</button>
+            </div>
         </div>
-        <table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody></tbody></table>
+        <table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Acciones</th></tr></thead><tbody></tbody></table>
     </div>
 
     <div id="lluvia" class="view">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2>Pluviómetro</h2>
-            <button class="btn-add" onclick="guardarLluvia()">+ Cargar Milímetros</button>
+            <div>
+                <button class="btn-excel" onclick="exportar('lluvias', 'excel')"><i class="fas fa-file-excel"></i></button>
+                <button class="btn-add" onclick="nuevo('lluvia')">+ Cargar</button>
+            </div>
         </div>
-        <table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th></tr></thead><tbody></tbody></table>
+        <table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th><th>Acciones</th></tr></thead><tbody></tbody></table>
     </div>
 </div>
 
@@ -95,52 +110,76 @@
                 document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
             } else if(view === 'vaca') {
                 const d = await fetch(`${API}/api/ganaderia`).then(res => res.json());
-                document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `<tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td></tr>`).join('');
+                document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `
+                    <tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td>
+                    <td>
+                        <button onclick="editar('ganaderia', ${x.id})" style="color:blue; background:none; border:none; cursor:pointer;"><i class="fas fa-edit"></i></button>
+                        <button onclick="eliminar('ganaderia', ${x.id})" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </td></tr>`).join('');
             } else if(view === 'lote') {
                 const d = await fetch(`${API}/api/lotes`).then(res => res.json());
-                document.querySelector('#t-lote tbody').innerHTML = d.map(x => `<tr><td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.has}</td></tr>`).join('');
+                document.querySelector('#t-lote tbody').innerHTML = d.map(x => `
+                    <tr><td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.has}</td>
+                    <td>
+                        <button onclick="eliminar('lotes', ${x.id})" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </td></tr>`).join('');
             } else if(view === 'lluvia') {
                 const d = await fetch(`${API}/api/lluvias`).then(res => res.json());
-                document.querySelector('#t-lluvia tbody').innerHTML = d.map(x => `<tr><td>${x.fecha}</td><td>${x.mm}</td></tr>`).join('');
+                document.querySelector('#t-lluvia tbody').innerHTML = d.map(x => `
+                    <tr><td>${x.fecha}</td><td>${x.mm}</td>
+                    <td>
+                        <button onclick="eliminar('lluvias', ${x.id})" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </td></tr>`).join('');
             }
         } catch (e) { console.error("Error:", e); }
     }
 
-    async function guardarAnimal() {
-        const id = prompt("Caravana:");
-        const p = prompt("Peso (kg):");
-        const e = prompt("Estado:");
-        if(!id || !p) return;
-        await fetch(`${API}/api/ganaderia`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({caravana: id, peso: parseFloat(p), estado: e})
-        });
-        loadData('vaca');
+    // --- ACCIONES ---
+
+    async function nuevo(tipo) {
+        if(tipo === 'vaca') {
+            const c = prompt("Caravana:"), p = prompt("Peso:"), e = prompt("Estado:");
+            if(c) await fetch(`${API}/api/ganaderia`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({caravana:c, peso:p, estado:e}) });
+        } else if(tipo === 'lluvia') {
+            const mm = prompt("Milímetros:");
+            if(mm) await fetch(`${API}/api/lluvias`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mm:mm, fecha: new Date().toLocaleDateString()}) });
+        }
+        location.reload();
     }
 
-    async function guardarLote() {
-        const n = prompt("Nombre:");
-        const c = prompt("Cultivo:");
-        const h = prompt("Has:");
-        if(!n) return;
-        await fetch(`${API}/api/lotes`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({nombre: n, cultivo: c, has: parseFloat(h)})
-        });
-        loadData('lote');
+    async function eliminar(ruta, id) {
+        if(confirm("¿Eliminar registro?")) {
+            await fetch(`${API}/api/${ruta}/${id}`, { method: 'DELETE' });
+            location.reload();
+        }
     }
 
-    async function guardarLluvia() {
-        const m = prompt("Milímetros:");
-        if(!m) return;
-        await fetch(`${API}/api/lluvias`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({mm: parseFloat(m), fecha: new Date().toLocaleDateString()})
-        });
-        loadData('lluvia');
+    async function editar(ruta, id) {
+        const p = prompt("Nuevo Peso:");
+        if(p) {
+            await fetch(`${API}/api/${ruta}/${id}`, { method: 'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({peso:p}) });
+            location.reload();
+        }
+    }
+
+    // --- EXPORTACIÓN ---
+
+    async function exportar(ruta, formato) {
+        let endpoint = ruta === 'vaca' ? 'ganaderia' : ruta;
+        const data = await fetch(`${API}/api/${endpoint}`).then(res => res.json());
+        
+        if(formato === 'excel') {
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+            XLSX.writeFile(wb, `AgroNexo_${ruta}.xlsx`);
+        } else {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text(`Reporte de ${ruta}`, 10, 10);
+            doc.autoTable({ body: data.map(Object.values) });
+            doc.save(`AgroNexo_${ruta}.pdf`);
+        }
     }
 
     function initMap() {
