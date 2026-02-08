@@ -8,8 +8,10 @@ CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v11.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# MODELOS DE DATOS INTEGRADOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -27,6 +29,7 @@ class Lluvia(db.Model):
     mm = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
+# ENDPOINTS DE GESTIÓN
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
@@ -42,7 +45,7 @@ def handle_ganaderia():
         db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
         db.session.commit()
         return jsonify({"status": "ok"})
-    return jsonify([{"caravana": a.caravana, "peso": a.weight, "estado": a.estado} for a in Animal.query.all()])
+    return jsonify([{"caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
 
 @app.route('/api/lotes', methods=['GET', 'POST'])
 def handle_lotes():
@@ -65,7 +68,7 @@ def handle_lluvias():
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA V11.5 REINICIADO"
+    return "SISTEMA REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
