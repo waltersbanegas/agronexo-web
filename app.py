@@ -2,12 +2,13 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import func
 
 app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_v1.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_pro.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -29,21 +30,20 @@ class Lluvia(db.Model):
     mm = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
-# --- ENDPOINTS ---
+# --- ENDPOINTS DE CONSULTA Y CARGA ---
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
-        "lluvias": db.session.query(db.func.sum(Lluvia.mm)).scalar() or 0
+        "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0
     })
 
 @app.route('/api/ganaderia', methods=['GET', 'POST'])
 def handle_ganaderia():
     if request.method == 'POST':
         d = request.json
-        new_animal = Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado'])
-        db.session.add(new_animal)
+        db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
         db.session.commit()
         return jsonify({"status": "ok"})
     return jsonify([{"id": a.id, "caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
@@ -67,23 +67,22 @@ def handle_lluvias():
     return jsonify([{"id": ll.id, "mm": ll.mm, "fecha": ll.fecha} for ll in Lluvia.query.all()])
 
 # --- ACCIONES DE EDICIÓN Y BORRADO ---
-@app.route('/api/ganaderia/<int:id>', methods=['PUT', 'DELETE'])
-def edit_delete_animal(id):
-    item = Animal.query.get_or_404(id)
+@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
+def acciones(modulo, id):
+    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
+    item = modelos[modulo].query.get_or_404(id)
     if request.method == 'DELETE':
         db.session.delete(item)
     else:
         d = request.json
-        item.caravana = d.get('caravana', item.caravana)
-        item.peso = d.get('peso', item.peso)
-        item.estado = d.get('estado', item.estado)
+        for key, value in d.items(): setattr(item, key, value)
     db.session.commit()
     return jsonify({"status": "ok"})
 
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA REESTABLECIDO"
+    return "SISTEMA AGROPECUARIO V.PRO ACTIVADO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()

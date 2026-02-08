@@ -38,24 +38,24 @@
 
 <div class="main">
     <div id="inicio" class="view active">
-        <h1>Resumen General</h1>
+        <h1>Resumen de Campo</h1>
         <div class="card-grid">
             <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size: 24px; font-weight: bold;">--</div></div>
             <div class="card"><h4>Lotes</h4><div id="c-lot" style="font-size: 24px; font-weight: bold;">--</div></div>
-            <div class="card"><h4>Lluvia Tot.</h4><div id="c-lluvia" style="font-size: 24px; font-weight: bold;">-- mm</div></div>
+            <div class="card"><h4>Lluvias</h4><div id="c-lluvia" style="font-size: 24px; font-weight: bold;">-- mm</div></div>
         </div>
     </div>
 
     <div id="vaca" class="view">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Hacienda Braford</h2>
+            <h2>Rodeo Braford</h2>
             <div>
                 <button class="btn-exp" style="background:#1d6f42;" onclick="exportar('vaca', 'excel')"><i class="fas fa-file-excel"></i></button>
                 <button class="btn-exp" style="background:#b91c1c;" onclick="exportar('vaca', 'pdf')"><i class="fas fa-file-pdf"></i></button>
                 <button class="btn-add" onclick="nuevo('vaca')">+ Nuevo</button>
             </div>
         </div>
-        <table id="t-vaca"><thead><tr><th>Caravana</th><th>Peso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table>
+        <table id="t-vaca"><thead><tr><th>ID</th><th>Peso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table>
     </div>
 
     </div>
@@ -82,10 +82,10 @@
                 document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `
                     <tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td>
                     <td>
-                        <button onclick="eliminar('ganaderia', ${x.id})" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                        <button onclick="borrar('ganaderia', ${x.id})" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
                     </td></tr>`).join('');
             }
-        } catch (e) { console.error("Error:", e); }
+        } catch (e) { console.error("Error cargando datos:", e); }
     }
 
     async function nuevo(tipo) {
@@ -98,22 +98,20 @@
                     body: JSON.stringify({caravana: c, peso: parseFloat(p), estado: e})
                 });
                 loadData('vaca');
-                loadData('inicio');
             }
         }
     }
 
-    async function eliminar(ruta, id) {
-        if(confirm("¿Eliminar registro?")) {
+    async function borrar(ruta, id) {
+        if(confirm("¿Eliminar?")) {
             await fetch(`${API}/api/${ruta}/${id}`, { method: 'DELETE' });
-            loadData(ruta === 'ganaderia' ? 'vaca' : ruta);
-            loadData('inicio');
+            loadData('vaca');
         }
     }
 
     async function exportar(ruta, formato) {
-        let endpoint = ruta === 'vaca' ? 'ganaderia' : ruta;
-        const data = await fetch(`${API}/api/${endpoint}`).then(res => res.json());
+        let ep = ruta === 'vaca' ? 'ganaderia' : ruta;
+        const data = await fetch(`${API}/api/${ep}`).then(res => res.json());
         if(formato === 'excel') {
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
