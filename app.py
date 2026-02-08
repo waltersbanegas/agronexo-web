@@ -30,7 +30,6 @@ class Lluvia(db.Model):
     mm = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
-# --- ENDPOINTS DE CONSULTA Y CARGA ---
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
@@ -39,60 +38,40 @@ def resumen():
         "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0
     })
 
-# Manejo de Ganadería
-@app.route('/api/ganaderia', methods=['GET', 'POST'])
-def handle_ganaderia():
+# RUTAS GENERALES DE GESTIÓN
+@app.route('/api/<string:modulo>', methods=['GET', 'POST'])
+def gestion_modulo(modulo):
+    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
+    model = modelos.get(modulo)
     if request.method == 'POST':
         d = request.json
-        db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
+        if modulo == 'ganaderia': db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
+        elif modulo == 'lotes': db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has']))
+        elif modulo == 'lluvias': db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
         db.session.commit()
         return jsonify({"status": "ok"})
-    return jsonify([{"id": a.id, "caravana": a.caravana, "peso": a.peso, "estado": a.estado} for a in Animal.query.all()])
+    
+    items = model.query.all()
+    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
+    if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has} for i in items])
+    if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
 
-# Manejo de Lotes
-@app.route('/api/lotes', methods=['GET', 'POST'])
-def handle_lotes():
-    if request.method == 'POST':
-        d = request.json
-        db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has']))
-        db.session.commit()
-        return jsonify({"status": "ok"})
-    return jsonify([{"id": l.id, "nombre": l.nombre, "cultivo": l.cultivo, "has": l.has} for l in Lote.query.all()])
-
-# Manejo de Lluvias
-@app.route('/api/lluvias', methods=['GET', 'POST'])
-def handle_lluvias():
-    if request.method == 'POST':
-        d = request.json
-        db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
-        db.session.commit()
-        return jsonify({"status": "ok"})
-    return jsonify([{"id": ll.id, "mm": ll.mm, "fecha": ll.fecha} for ll in Lluvia.query.all()])
-
-# --- ACCIONES DE EDICIÓN Y BORRADO (PARA TODAS LAS SECCIONES) ---
 @app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
 def acciones(modulo, id):
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
     item = modelos[modulo].query.get_or_404(id)
-    
     if request.method == 'DELETE':
         db.session.delete(item)
     else:
         d = request.json
-        if modulo == 'ganaderia':
-            item.caravana = d.get('caravana', item.caravana)
-            item.peso = d.get('peso', item.peso)
-            item.estado = d.get('estado', item.estado)
-        elif modulo == 'lotes':
-            item.nombre = d.get('nombre', item.nombre)
-            item.cultivo = d.get('cultivo', item.cultivo)
-            item.has = d.get('has', item.has)
-        elif modulo == 'lluvias':
-            item.mm = d.get('mm', item.mm)
-            item.fecha = d.get('fecha', item.fecha)
-            
+        for key, val in d.items(): setattr(item, key, val)
     db.session.commit()
     return jsonify({"status": "ok"})
+
+@app.route('/reset')
+def reset():
+    db.drop_all(); db.create_all()
+    return "SISTEMA V12 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
