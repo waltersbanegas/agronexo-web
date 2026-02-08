@@ -1,141 +1,42 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgroNexo V11.1</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); }
-        .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; }
-        .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; }
-        .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--a); }
-        .main { flex: 1; overflow-y: auto; padding: 25px; }
-        .view { display: none; }
-        .view.active { display: block; }
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 4px solid var(--a); }
-        .btn-add { background: var(--a); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 10px; overflow: hidden; }
-        th { background: #f1f5f9; padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
-    </style>
-</head>
-<body>
+// Función para guardar Animal
+async function guardarAnimal() {
+    const id = prompt("Caravana:");
+    const p = prompt("Peso (kg):");
+    const e = prompt("Estado:");
+    if(!id || !p) return;
 
-<div class="sidebar">
-    <h2 style="color:var(--a)">AgroNexo</h2>
-    <button class="nav-btn active" onclick="go('inicio')"><i class="fas fa-home"></i> Inicio</button>
-    <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Ganadería</button>
-    <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
-    <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
-</div>
+    await fetch('https://agronexo-backend.onrender.com/api/ganaderia', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({caravana: id, peso: parseFloat(p), estado: e})
+    });
+    location.reload(); // Recarga para ver el cambio
+}
 
-<div class="main">
-    <div id="inicio" class="view active">
-        <h1>Resumen</h1>
-        <div class="card-grid">
-            <div class="card"><h4>Hacienda</h4><div id="c-vaca">--</div></div>
-            <div class="card"><h4>Lotes</h4><div id="c-lot">--</div></div>
-            <div class="card"><h4>Lluvias</h4><div id="c-lluvia">-- mm</div></div>
-        </div>
-    </div>
+// Función para guardar Lote
+async function guardarLote() {
+    const n = prompt("Nombre:");
+    const c = prompt("Cultivo:");
+    const h = prompt("Has:");
+    if(!n) return;
 
-    <div id="vaca" class="view">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Ganadería</h2>
-            <button class="btn-add" onclick="nuevoAnimal()">+ Nuevo Animal</button>
-        </div>
-        <table id="t-vaca"><thead><tr><th>Caravana</th><th>Peso</th><th>Estado</th></tr></thead><tbody></tbody></table>
-    </div>
+    await fetch('https://agronexo-backend.onrender.com/api/lotes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nombre: n, cultivo: c, has: parseFloat(h)})
+    });
+    location.reload();
+}
 
-    <div id="lote" class="view">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Agricultura</h2>
-            <button class="btn-add" onclick="nuevoLote()">+ Nuevo Lote</button>
-        </div>
-        <table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th></tr></thead><tbody></tbody></table>
-    </div>
+// Función para guardar Lluvia
+async function guardarLluvia() {
+    const m = prompt("Milímetros:");
+    if(!m) return;
 
-    <div id="lluvia" class="view">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Lluvia</h2>
-            <button class="btn-add" onclick="nuevaLluvia()">+ Cargar Milímetros</button>
-        </div>
-        <table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th></tr></thead><tbody></tbody></table>
-    </div>
-</div>
-
-<script>
-    const API = "https://agronexo-backend.onrender.com";
-
-    function go(id) {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        loadData(id);
-    }
-
-    async function loadData(view) {
-        if(view === 'inicio') {
-            const r = await fetch(`${API}/api/resumen`).then(res => res.json());
-            document.getElementById('c-vaca').innerText = r.hacienda;
-            document.getElementById('c-lot').innerText = r.lotes;
-            document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
-        } else if(view === 'vaca') {
-            const d = await fetch(`${API}/api/ganaderia`).then(res => res.json());
-            document.querySelector('#t-vaca tbody').innerHTML = d.map(x => `<tr><td>${x.caravana}</td><td>${x.peso}kg</td><td>${x.estado}</td></tr>`).join('');
-        } else if(view === 'lote') {
-            const d = await fetch(`${API}/api/lotes`).then(res => res.json());
-            document.querySelector('#t-lote tbody').innerHTML = d.map(x => `<tr><td>${x.nombre}</td><td>${x.cultivo}</td><td>${x.has}</td></tr>`).join('');
-        } else if(view === 'lluvia') {
-            const d = await fetch(`${API}/api/lluvias`).then(res => res.json());
-            document.querySelector('#t-lluvia tbody').innerHTML = d.map(x => `<tr><td>${x.fecha}</td><td>${x.mm}</td></tr>`).join('');
-        }
-    }
-
-    async function nuevoAnimal() {
-        const id = prompt("Caravana:");
-        const peso = prompt("Peso (kg):");
-        const est = prompt("Estado (VACIA/PREÑADA/PARIDA):");
-        if(id && peso) {
-            await fetch(`${API}/api/ganaderia`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({caravana: id, peso: peso, estado: est})
-            });
-            loadData('vaca');
-        }
-    }
-
-    async function nuevaLluvia() {
-        const mm = prompt("Milímetros registrados:");
-        if(mm) {
-            await fetch(`${API}/api/lluvias`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({mm: mm})
-            });
-            loadData('lluvia');
-        }
-    }
-
-    async function nuevoLote() {
-        const nom = prompt("Nombre del lote:");
-        const cul = prompt("Cultivo:");
-        const has = prompt("Hectáreas:");
-        if(nom) {
-            await fetch(`${API}/api/lotes`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({nombre: nom, cultivo: cul, has: has})
-            });
-            loadData('lote');
-        }
-    }
-
-    window.onload = () => loadData('inicio');
-</script>
-</body>
-</html>
+    await fetch('https://agronexo-backend.onrender.com/api/lluvias', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mm: parseFloat(m), fecha: new Date().toLocaleDateString()})
+    });
+    location.reload();
+}
