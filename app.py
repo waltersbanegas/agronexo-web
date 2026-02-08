@@ -8,41 +8,46 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v12.db')
+# Base de datos unificada para todos los módulos
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v12_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS
+# --- MODELOS DE DATOS INTEGRADOS ---
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
     peso = db.Column(db.Float)
-    estado = db.Column(db.String(50))
+    estado = db.Column(db.String(50)) #
 
 class Lote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
     cultivo = db.Column(db.String(50))
-    has = db.Column(db.Float)
+    has = db.Column(db.Float) #
 
 class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     mm = db.Column(db.Float)
-    fecha = db.Column(db.String(20))
+    fecha = db.Column(db.String(20)) #
 
+# --- ENDPOINTS DE GESTIÓN ---
 @app.route('/api/resumen')
 def resumen():
+    # Dashboard consolidado
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
         "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0
     })
 
-# RUTAS GENERALES DE GESTIÓN
 @app.route('/api/<string:modulo>', methods=['GET', 'POST'])
-def gestion_modulo(modulo):
+def gestion_datos(modulo):
+    # Lógica unificada para Ganadería, Lotes y Lluvia
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
     model = modelos.get(modulo)
+    if not model: return jsonify({"error": "Modulo no encontrado"}), 404
+
     if request.method == 'POST':
         d = request.json
         if modulo == 'ganaderia': db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
@@ -58,6 +63,7 @@ def gestion_modulo(modulo):
 
 @app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
 def acciones(modulo, id):
+    # Función profesional de edición y borrado
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia}
     item = modelos[modulo].query.get_or_404(id)
     if request.method == 'DELETE':
@@ -70,8 +76,9 @@ def acciones(modulo, id):
 
 @app.route('/reset')
 def reset():
+    # Limpieza total para sincronización de base de datos
     db.drop_all(); db.create_all()
-    return "SISTEMA V12 REESTABLECIDO"
+    return "SISTEMA AGROPECUARIO V12 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
