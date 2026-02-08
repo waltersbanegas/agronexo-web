@@ -1,6 +1,4 @@
 import os
-import random
-from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -10,66 +8,70 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v11.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- MODELOS INTEGRADOS ---
+# --- MODELOS ---
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
-    categoria = db.Column(db.String(50))
     raza = db.Column(db.String(50), default='Braford')
-    peso = db.Column(db.Float, default=0.0)
-    estado = db.Column(db.String(50), default='VACIA')
+    peso = db.Column(db.Float)
+    estado = db.Column(db.String(50)) 
     lat = db.Column(db.Float)
     lng = db.Column(db.Float)
-    activo = db.Column(db.Boolean, default=True)
 
 class Lote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
     cultivo = db.Column(db.String(50))
     hectareas = db.Column(db.Float)
-    condicion = db.Column(db.String(50)) # Propio/Alquilado
-    activo = db.Column(db.Boolean, default=True)
 
 class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    lote_id = db.Column(db.Integer)
     mm = db.Column(db.Float)
     fecha = db.Column(db.DateTime, server_default=func.now())
 
-class Transaccion(db.Model):
+class Finanzas(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    tipo = db.Column(db.String(20)) # INGRESO/EGRESO
     monto = db.Column(db.Float)
-    categoria = db.Column(db.String(50))
-    fecha = db.Column(db.DateTime, server_default=func.now())
+    tipo = db.Column(db.String(20)) 
+    concepto = db.Column(db.String(100))
 
-# --- RUTAS DE GESTIÓN ---
-@app.route('/api/dashboard/full')
-def full_dashboard():
-    ingresos = db.session.query(func.sum(Transaccion.monto)).filter(Transaccion.tipo == 'INGRESO').scalar() or 0
-    egresos = db.session.query(func.sum(Transaccion.monto)).filter(Transaccion.tipo == 'EGRESO').scalar() or 0
+# --- ENDPOINTS ---
+@app.route('/api/resumen')
+def resumen():
+    # Centraliza los datos del Dashboard
     return jsonify({
-        "finanzas": {"caja": ingresos - egresos, "egresos": egresos},
-        "produccion": {
-            "animales": Animal.query.filter_by(activo=True).count(),
-            "lotes": Lote.query.filter_by(activo=True).count(),
-            "lluvias": Lluvia.query.count()
-        }
+        "hacienda": Animal.query.count(),
+        "lotes": Lote.query.count(),
+        "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0,
+        "caja": (db.session.query(func.sum(Finanzas.monto)).filter(Finanzas.tipo=='INGRESO').scalar() or 0) - 
+                (db.session.query(func.sum(Finanzas.monto)).filter(Finanzas.tipo=='EGRESO').scalar() or 0)
     })
 
+@app.route('/api/ganaderia', methods=['GET'])
+def get_ganaderia():
+    return jsonify([{"caravana":a.caravana, "raza":a.raza, "peso":a.peso, "estado":a.estado} for a in Animal.query.all()])
+
+@app.route('/api/lotes', methods=['GET'])
+def get_lotes():
+    return jsonify([{"nombre":l.nombre, "cultivo":l.cultivo, "has":l.hectareas} for l in Lote.query.all()])
+
+@app.route('/api/lluvias', methods=['GET'])
+def get_lluvias():
+    return jsonify([{"fecha": str(l.fecha)[:10], "mm": l.mm} for l in Lluvia.query.all()])
+
 @app.route('/reset')
-def reset_system():
+def reset():
     db.drop_all(); db.create_all()
-    # Sembrar datos reales para Los Frentones
-    l1 = Lote(nombre="Lote Norte", cultivo="Soja", hectareas=100, condicion="Propio")
-    db.session.add(l1)
-    for i in range(1, 11):
-        db.session.add(Animal(caravana=f"BF-{100+i}", categoria="Vaca", peso=450, lat=-26.42+(i/1000), lng=-61.41+(i/1000)))
+    # Datos iniciales para que la app no arranque vacía
+    db.session.add(Lote(nombre="Lote Norte", cultivo="Soja", hectareas=120))
+    db.session.add(Animal(caravana="RP-101", raza="Braford", peso=450, estado="PREÑADA", lat=-26.42, lng=-61.41))
+    db.session.add(Lluvia(mm=15))
     db.session.commit()
-    return "SISTEMA EXPERTO V9 RESTAURADO"
+    return "SISTEMA V11 REINICIADO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
