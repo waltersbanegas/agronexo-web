@@ -8,12 +8,12 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Base de datos blindada v18
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v18_final.db')
+# Base de datos unificada definitiva
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_v20.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS COMPLETOS
+# MODELOS DE DATOS PROFESIONALES
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -41,6 +41,7 @@ class Gasto(db.Model):
 # --- ENDPOINTS ---
 @app.route('/api/resumen')
 def resumen():
+    # Dashboard consolidado real
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
@@ -62,6 +63,7 @@ def gestion_datos(modulo):
         return jsonify({"status": "ok"})
     
     items = model.query.all()
+    # Retorno de datos completo para visualización
     if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
     if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has,"geometria":i.geometria} for i in items])
     if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
@@ -82,7 +84,7 @@ def acciones(modulo, id):
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA V18 REESTABLECIDO"
+    return "SISTEMA REESTABLECIDO - VERSION 20"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
