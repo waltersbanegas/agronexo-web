@@ -8,10 +8,12 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v17_final.db')
+# Base de datos blindada v18
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v18_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# MODELOS DE DATOS COMPLETOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -36,6 +38,7 @@ class Gasto(db.Model):
     monto = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
+# --- ENDPOINTS ---
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
@@ -57,6 +60,7 @@ def gestion_datos(modulo):
         elif modulo == 'gastos': db.session.add(Gasto(concepto=d['concepto'], monto=d['monto'], fecha=d['fecha']))
         db.session.commit()
         return jsonify({"status": "ok"})
+    
     items = model.query.all()
     if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
     if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has,"geometria":i.geometria} for i in items])

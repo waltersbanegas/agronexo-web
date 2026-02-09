@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo Móvil</title>
+    <title>AgroNexo Pro V18</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.css" />
@@ -11,75 +11,72 @@
     <script src="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.js"></script>
     <style>
         :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; flex-direction: row; }
-        .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; display: flex; flex-direction: column; }
-        .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; font-size: 16px; }
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
+        .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; }
+        .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; margin-bottom: 5px; }
         .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--a); }
-        .main { flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 80px; }
+        .main { flex: 1; overflow-y: auto; padding: 25px; padding-bottom: 80px; }
         .view { display: none; }
         .view.active { display: block; }
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid var(--a); }
-        .table-container { width: 100%; overflow-x: auto; background: white; border-radius: 10px; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; min-width: 500px; }
-        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
-        #map { height: 60vh; border-radius: 12px; width: 100%; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid var(--a); }
+        .btn-add { background: var(--a); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .table-container { width: 100%; overflow-x: auto; background: white; border-radius: 10px; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        #map { height: 70vh; border-radius: 12px; width: 100%; }
 
-        /* AJUSTES PARA TELÉFONO */
         @media (max-width: 768px) {
             body { flex-direction: column; }
-            .sidebar { 
-                width: 100%; height: 60px; padding: 0; flex-direction: row; 
-                position: fixed; bottom: 0; left: 0; z-index: 1000; justify-content: space-around;
-            }
+            .sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; justify-content: space-around; position: fixed; bottom: 0; left: 0; z-index: 1000; }
             .sidebar h2 { display: none; }
-            .nav-btn { flex-direction: column; gap: 2px; font-size: 10px; padding: 10px 5px; text-align: center; width: auto; }
+            .nav-btn { flex-direction: column; font-size: 10px; width: auto; padding: 5px; text-align: center; }
             .nav-btn i { font-size: 18px; }
             .nav-btn.active { border-left: none; border-top: 4px solid var(--a); background: none; }
-            .main { padding: 10px; }
-            h1 { font-size: 20px; }
+            .main { padding: 15px; }
         }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2 style="color:var(--a); margin-left: 10px;">AgroNexo</h2>
+        <h2 style="color:var(--a); margin-bottom: 20px;">AgroNexo</h2>
         <button class="nav-btn active" onclick="go('inicio')"><i class="fas fa-home"></i> Inicio</button>
         <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map"></i> Mapa</button>
-        <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Ganadería</button>
+        <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Hacienda</button>
         <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
         <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
         <button class="nav-btn" onclick="go('gasto')" style="color:#fbbf24"><i class="fas fa-wallet"></i> Gastos</button>
     </div>
     <div class="main">
         <div id="inicio" class="view active">
-            <h1>Resumen</h1>
+            <h1>Dashboard Consolidado</h1>
             <div class="card-grid">
-                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-weight:bold">--</div></div>
-                <div class="card"><h4>Lluvias</h4><div id="c-lluvia" style="font-weight:bold">-- mm</div></div>
-                <div class="card"><h4>Gastos</h4><div id="c-gastos" style="font-weight:bold; color:red">$ --</div></div>
+                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size:24px;font-weight:bold">--</div></div>
+                <div class="card"><h4>Lotes</h4><div id="c-lot" style="font-size:24px;font-weight:bold">--</div></div>
+                <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-size:24px;font-weight:bold">-- mm</div></div>
+                <div class="card"><h4>Gastos</h4><div id="c-gastos" style="font-size:24px;font-weight:bold;color:red">$ --</div></div>
             </div>
         </div>
         <div id="mapa" class="view"><div id="map"></div></div>
         
         <div id="vaca" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Hacienda</h2><button onclick="nuevo('vaca')" style="background:var(--a); color:white; border:none; padding:8px; border-radius:5px;">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-vaca"><thead><tr><th>ID</th><th>Peso</th><th>Estado</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Hacienda</h2><button class="btn-add" onclick="nuevo('vaca')">+ Nuevo</button></div>
+            <div class="table-container"><table id="t-vaca"><thead><tr><th>ID</th><th>Peso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </div>
-        
+
         <div id="lote" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lotes</h2><button onclick="nuevo('lote')" style="background:var(--a); color:white; border:none; padding:8px; border-radius:5px;">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lotes</h2><button class="btn-add" onclick="nuevo('lote')">+ Nuevo</button></div>
+            <div class="table-container"><table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </div>
 
         <div id="lluvia" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lluvia</h2><button onclick="nuevo('lluvia')" style="background:var(--a); color:white; border:none; padding:8px; border-radius:5px;">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lluvia</h2><button class="btn-add" onclick="nuevo('lluvia')">+ Cargar</button></div>
+            <div class="table-container"><table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </div>
 
         <div id="gasto" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Gastos</h2><button onclick="nuevo('gasto')" style="background:var(--a); color:white; border:none; padding:8px; border-radius:5px;">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-gasto"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Gastos</h2><button class="btn-add" onclick="nuevo('gasto')">+ Nuevo</button></div>
+            <div class="table-container"><table id="t-gasto"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </div>
     </div>
 <script>
@@ -99,6 +96,7 @@
             if(view === 'inicio') {
                 const r = await fetch(`${API}/api/resumen`).then(res => res.json());
                 document.getElementById('c-vaca').innerText = r.hacienda;
+                document.getElementById('c-lot').innerText = r.lotes;
                 document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
                 document.getElementById('c-gastos').innerText = `$ ${r.gastos.toLocaleString()}`;
             } else if (view !== 'mapa') {
@@ -108,7 +106,10 @@
                 if(tbody) {
                     tbody.innerHTML = d.map(x => `
                         <tr><td>${x.caravana || x.nombre || x.fecha}</td><td>${x.peso ? x.peso+'kg' : (x.cultivo || x.mm || x.concepto)}</td><td>${x.estado || x.has || '$'+x.monto || ''}</td>
-                        <td><button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none;"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+                        <td>
+                            <button onclick="editar('${mod}',${x.id})" style="color:blue;background:none;border:none;"><i class="fas fa-edit"></i></button>
+                            <button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none;"><i class="fas fa-trash"></i></button>
+                        </td></tr>`).join('');
                 }
             }
         } catch (e) { console.error(e); }
@@ -121,7 +122,7 @@
             drawnItems = new L.FeatureGroup().addTo(map);
             new L.Control.Draw({ draw:{polygon:true,polyline:false,circle:false,marker:false,circlemarker:false}, edit:{featureGroup:drawnItems} }).addTo(map);
             map.on(L.Draw.Event.CREATED, async function (e) {
-                const nom = prompt("Lote:");
+                const nom = prompt("Nombre del Lote:");
                 if(nom) {
                     await fetch(`${API}/api/lotes`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:nom, cultivo:'--', has:0, geometria:JSON.stringify(e.layer.toGeoJSON())}) });
                     location.reload();
@@ -134,9 +135,7 @@
     async function cargarPoligonos() {
         const lotes = await fetch(`${API}/api/lotes`).then(res => res.json());
         lotes.forEach(l => {
-            if(l.geometria) {
-                L.geoJSON(JSON.parse(l.geometria)).addTo(drawnItems).bindPopup(`<b>${l.nombre}</b>`);
-            }
+            if(l.geometria) { L.geoJSON(JSON.parse(l.geometria)).addTo(drawnItems).bindPopup(`<b>${l.nombre}</b>`); }
         });
     }
 
@@ -150,6 +149,16 @@
         
         await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
         loadData(tipo);
+        loadData('inicio');
+    }
+
+    async function editar(mod, id) {
+        let val = prompt("Nuevo Valor:");
+        if(val) {
+            let body = mod === 'ganaderia' ? {peso:val} : (mod === 'lotes' ? {has:val} : {mm:val});
+            await fetch(`${API}/api/${mod}/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+            location.reload();
+        }
     }
 
     async function eliminar(mod, id) {
