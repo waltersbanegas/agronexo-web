@@ -61,7 +61,7 @@ def gestion_datos(modulo):
         return jsonify({"status": "ok"})
     
     items = model.query.all()
-    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.id,"estado":i.estado} for i in items])
+    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
     if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has} for i in items])
     if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
     if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
