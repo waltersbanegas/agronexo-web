@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Base de datos estable v13
+# Base de datos v13 estable
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v13_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -66,17 +66,22 @@ def gestion_datos(modulo):
     if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
     if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
 
-@app.route('/api/<string:modulo>/<int:id>', methods=['DELETE'])
-def eliminar(modulo, id):
+@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
+def acciones(modulo, id):
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
     item = modelos[modulo].query.get_or_404(id)
-    db.session.delete(item); db.session.commit()
+    if request.method == 'DELETE':
+        db.session.delete(item)
+    else:
+        d = request.json
+        for key, val in d.items(): setattr(item, key, val)
+    db.session.commit()
     return jsonify({"status": "ok"})
 
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA V13 REESTABLECIDO"
+    return "SISTEMA AGROPECUARIO V.14 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
