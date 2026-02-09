@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgroNexo Business V13</title>
+    <title>AgroNexo Pro V13</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        :root { --p: #0f172a; --a: #22c55e; --r: #ef4444; --bg: #f8fafc; }
+        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
         body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
         .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; }
         .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; margin-bottom: 5px; }
@@ -30,74 +29,72 @@
         <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Ganadería</button>
         <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
         <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
-        <button class="nav-btn" onclick="go('gasto')" style="color: #fbbf24;"><i class="fas fa-wallet"></i> Gastos</button>
+        <button class="nav-btn" onclick="go('gasto')" style="color:#fbbf24"><i class="fas fa-wallet"></i> Gastos</button>
     </div>
     <div class="main">
         <div id="inicio" class="view active">
-            <h1>Dashboard de Gestión</h1>
+            <h1>Dashboard</h1>
             <div class="card-grid">
-                <div class="card"><h4>Inversión Total</h4><div id="c-gastos" style="font-size:24px; font-weight:bold; color:var(--r)">$ --</div></div>
-                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size:24px; font-weight:bold">--</div></div>
-                <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-size:24px; font-weight:bold">-- mm</div></div>
+                <div class="card"><h4>Gastos Tot.</h4><div id="c-gastos" style="font-size:24px;font-weight:bold">$ --</div></div>
+                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size:24px;font-weight:bold">--</div></div>
+                <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-size:24px;font-weight:bold">-- mm</div></div>
             </div>
         </div>
-
+        <div id="vaca" class="view">
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Hacienda</h2><button class="btn-add" onclick="nuevo('vaca')">+ Nuevo</button></div>
+            <table id="t-vaca"><thead><tr><th>ID</th><th>Peso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div id="lote" class="view">
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lotes</h2><button class="btn-add" onclick="nuevo('lote')">+ Nuevo</button></div>
+            <table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Acciones</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div id="lluvia" class="view">
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lluvia</h2><button class="btn-add" onclick="nuevo('lluvia')">+ Cargar</button></div>
+            <table id="t-lluvia"><thead><tr><th>Fecha</th><th>MM</th><th>Acciones</th></tr></thead><tbody></tbody></table>
+        </div>
         <div id="gasto" class="view">
-            <div style="display:flex; justify-content:space-between; align-items:center">
-                <h2>Gastos de Campaña</h2>
-                <button class="btn-add" onclick="nuevo('gasto')">+ Nuevo Gasto</button>
-            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Gastos</h2><button class="btn-add" onclick="nuevo('gasto')">+ Nuevo</button></div>
             <table id="t-gasto"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead><tbody></tbody></table>
         </div>
-        
-        </div>
-
+    </div>
 <script>
     const API = "https://agronexo-backend.onrender.com";
-
     function go(id) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(id).classList.add('active');
         loadData(id);
     }
-
     async function loadData(view) {
         try {
             if(view === 'inicio') {
                 const r = await fetch(`${API}/api/resumen`).then(res => res.json());
-                document.getElementById('c-gastos').innerText = `$ ${r.gastos.toLocaleString()}`;
+                document.getElementById('c-gastos').innerText = `$ ${r.gastos}`;
                 document.getElementById('c-vaca').innerText = r.hacienda;
                 document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
             } else {
-                const mod = view === 'gasto' ? 'gastos' : (view === 'vaca' ? 'ganaderia' : (view === 'lote' ? 'lotes' : 'lluvias'));
+                const mod = view === 'vaca' ? 'ganaderia' : (view === 'lote' ? 'lotes' : (view === 'lluvia' ? 'lluvias' : 'gastos'));
                 const d = await fetch(`${API}/api/${mod}`).then(res => res.json());
                 document.querySelector(`#t-${view} tbody`).innerHTML = d.map(x => `
-                    <tr><td>${x.fecha || x.caravana || x.nombre}</td><td>${x.concepto || x.peso || x.cultivo}</td><td>${x.monto ? '$'+x.monto : (x.estado || x.has)}</td>
-                    <td><button onclick="eliminar('${mod}',${x.id})" style="color:var(--r);background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+                    <tr><td>${x.caravana || x.nombre || x.fecha}</td><td>${x.peso || x.cultivo || x.mm || x.concepto}</td><td>${x.estado || x.has || x.monto || ''}</td>
+                    <td><button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button></td></tr>`).join('');
             }
         } catch (e) { console.error(e); }
     }
-
     async function nuevo(tipo) {
-        if(tipo === 'gasto') {
-            const c = prompt("Concepto (ej: Semilla Soja):"), m = prompt("Monto ($):");
-            if(c && m) {
-                await fetch(`${API}/api/gastos`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({concepto: c, monto: parseFloat(m), fecha: new Date().toLocaleDateString(), lote_id: 1})
-                });
-                loadData('gasto');
-            }
-        }
-        // ... mantener funciones nuevo vaca, lote y lluvia ...
+        let mod = tipo === 'vaca' ? 'ganaderia' : (tipo === 'lote' ? 'lotes' : (tipo === 'lluvia' ? 'lluvias' : 'gastos'));
+        let body = {};
+        if(tipo === 'vaca') body = {caravana:prompt("ID:"), peso:prompt("Peso:"), estado:prompt("Estado:")};
+        else if(tipo === 'lote') body = {nombre:prompt("Nombre:"), cultivo:prompt("Cultivo:"), has:prompt("Has:")};
+        else if(tipo === 'lluvia') body = {mm:prompt("MM:"), fecha:new Date().toLocaleDateString()};
+        else if(tipo === 'gasto') body = {concepto:prompt("Concepto:"), monto:prompt("Monto:"), fecha:new Date().toLocaleDateString()};
+        
+        await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+        loadData(tipo);
     }
-
     async function eliminar(mod, id) {
         if(confirm("¿Eliminar?")) { await fetch(`${API}/api/${mod}/${id}`, {method:'DELETE'}); location.reload(); }
     }
-
     window.onload = () => loadData('inicio');
 </script>
 </body>

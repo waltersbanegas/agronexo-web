@@ -8,11 +8,12 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v13_pro.db')
+# Base de datos estable v13
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v13_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS INTEGRADOS
+# MODELOS DE DATOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -34,18 +35,16 @@ class Gasto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     concepto = db.Column(db.String(100))
     monto = db.Column(db.Float)
-    lote_id = db.Column(db.Integer)
     fecha = db.Column(db.String(20))
 
 # --- ENDPOINTS ---
 @app.route('/api/resumen')
 def resumen():
-    total_gastos = db.session.query(func.sum(Gasto.monto)).scalar() or 0
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
         "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0,
-        "gastos": total_gastos
+        "gastos": db.session.query(func.sum(Gasto.monto)).scalar() or 0
     })
 
 @app.route('/api/<string:modulo>', methods=['GET', 'POST'])
@@ -57,32 +56,27 @@ def gestion_datos(modulo):
         if modulo == 'ganaderia': db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
         elif modulo == 'lotes': db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has']))
         elif modulo == 'lluvias': db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
-        elif modulo == 'gastos': db.session.add(Gasto(concepto=d['concepto'], monto=d['monto'], lote_id=d['lote_id'], fecha=d['fecha']))
+        elif modulo == 'gastos': db.session.add(Gasto(concepto=d['concepto'], monto=d['monto'], fecha=d['fecha']))
         db.session.commit()
         return jsonify({"status": "ok"})
     
     items = model.query.all()
-    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
+    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.id,"estado":i.estado} for i in items])
     if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has} for i in items])
     if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
     if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
 
-@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
-def acciones(modulo, id):
+@app.route('/api/<string:modulo>/<int:id>', methods=['DELETE'])
+def eliminar(modulo, id):
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
     item = modelos[modulo].query.get_or_404(id)
-    if request.method == 'DELETE':
-        db.session.delete(item)
-    else:
-        d = request.json
-        for key, val in d.items(): setattr(item, key, val)
-    db.session.commit()
+    db.session.delete(item); db.session.commit()
     return jsonify({"status": "ok"})
 
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "AGRONEXO V13 - MODULO GASTOS ACTIVADO"
+    return "SISTEMA V13 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
