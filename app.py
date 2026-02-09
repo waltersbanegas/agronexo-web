@@ -8,12 +8,12 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Base de datos v13 estable
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v13_final.db')
+# Base de datos estable v14
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v14_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS
+# MODELOS DE DATOS INTEGRADOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -81,7 +81,7 @@ def acciones(modulo, id):
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA AGROPECUARIO V.14 REESTABLECIDO"
+    return "SISTEMA AGROPECUARIO V14 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
