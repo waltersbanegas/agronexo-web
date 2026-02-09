@@ -8,12 +8,12 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Base de datos unificada v16
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v16_pro.db')
+# Base de datos final unificada para evitar desincronización
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v17_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS
+# MODELOS DE DATOS INTEGRADOS
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True)
@@ -25,7 +25,7 @@ class Lote(db.Model):
     nombre = db.Column(db.String(100))
     cultivo = db.Column(db.String(50))
     has = db.Column(db.Float)
-    geometria = db.Column(db.Text, nullable=True) # Coordenadas del mapa
+    geometria = db.Column(db.Text, nullable=True)
 
 class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,6 +41,7 @@ class Gasto(db.Model):
 # --- ENDPOINTS ---
 @app.route('/api/resumen')
 def resumen():
+    # Dashboard consolidado sin errores de carga
     return jsonify({
         "hacienda": Animal.query.count(),
         "lotes": Lote.query.count(),
@@ -67,17 +68,22 @@ def gestion_datos(modulo):
     if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
     if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
 
-@app.route('/api/<string:modulo>/<int:id>', methods=['DELETE'])
-def eliminar(modulo, id):
+@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
+def acciones(modulo, id):
     modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
     item = modelos[modulo].query.get_or_404(id)
-    db.session.delete(item); db.session.commit()
+    if request.method == 'DELETE':
+        db.session.delete(item)
+    else:
+        d = request.json
+        for key, val in d.items(): setattr(item, key, val)
+    db.session.commit()
     return jsonify({"status": "ok"})
 
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA V16 REESTABLECIDO"
+    return "SISTEMA V17 REESTABLECIDO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()

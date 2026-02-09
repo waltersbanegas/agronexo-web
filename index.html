@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgroNexo Expert V16</title>
+    <title>AgroNexo Expert V17</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
         body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
@@ -42,9 +43,9 @@
             <h1>Dashboard Consolidado</h1>
             <div class="card-grid">
                 <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size:24px;font-weight:bold">--</div></div>
-                <div class="card"><h4>Agricultura</h4><div id="c-lot" style="font-size:24px;font-weight:bold">-- Lotes</div></div>
+                <div class="card"><h4>Lotes Agrícolas</h4><div id="c-lot" style="font-size:24px;font-weight:bold">--</div></div>
                 <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-size:24px;font-weight:bold">-- mm</div></div>
-                <div class="card"><h4>Gastos Tot.</h4><div id="c-gastos" style="font-size:24px;font-weight:bold;color:#ef4444">$ --</div></div>
+                <div class="card"><h4>Inversión</h4><div id="c-gastos" style="font-size:24px;font-weight:bold;color:#ef4444">$ --</div></div>
             </div>
         </div>
         <div id="mapa" class="view"><div id="map"></div></div>
@@ -92,7 +93,10 @@
                 if(tbody) {
                     tbody.innerHTML = d.map(x => `
                         <tr><td>${x.caravana || x.nombre || x.fecha}</td><td>${x.peso ? x.peso+'kg' : (x.cultivo || x.mm || x.concepto)}</td><td>${x.estado || x.has || '$'+x.monto || ''}</td>
-                        <td><button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+                        <td>
+                            <button onclick="editar('${mod}',${x.id})" style="color:blue;background:none;border:none;cursor:pointer"><i class="fas fa-edit"></i></button>
+                            <button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button>
+                        </td></tr>`).join('');
                 }
             }
         } catch (e) { console.error(e); }
@@ -106,15 +110,11 @@
             new L.Control.Draw({ draw:{polygon:true,polyline:false,circle:false,marker:false,circlemarker:false}, edit:{featureGroup:drawnItems} }).addTo(map);
             
             map.on(L.Draw.Event.CREATED, async function (e) {
-                const nombre = prompt("Nombre del Lote:");
-                const cultivo = prompt("Cultivo:");
-                const has = prompt("Hectáreas:");
-                if(nombre) {
-                    await fetch(`${API}/api/lotes`, { 
-                        method:'POST', 
-                        headers:{'Content-Type':'application/json'}, 
-                        body:JSON.stringify({nombre:nombre, cultivo:cultivo, has:parseFloat(has), geometria:JSON.stringify(e.layer.toGeoJSON())}) 
-                    });
+                const nom = prompt("Nombre del Lote:");
+                const cul = prompt("Cultivo:");
+                const has = prompt("Has:");
+                if(nom) {
+                    await fetch(`${API}/api/lotes`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:nom, cultivo:cul, has:parseFloat(has), geometria:JSON.stringify(e.layer.toGeoJSON())}) });
                     location.reload();
                 }
             });
@@ -139,8 +139,21 @@
         else if(tipo === 'lote') body = {nombre:prompt("Nombre:"), cultivo:prompt("Cultivo:"), has:prompt("Has:")};
         else if(tipo === 'lluvia') body = {mm:prompt("MM:"), fecha:new Date().toLocaleDateString()};
         else if(tipo === 'gasto') body = {concepto:prompt("Concepto:"), monto:prompt("Monto:"), fecha:new Date().toLocaleDateString()};
-        await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-        loadData(tipo);
+        
+        if (Object.values(body).every(v => v)) {
+            await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+            loadData(tipo);
+            loadData('inicio');
+        }
+    }
+
+    async function editar(mod, id) {
+        let val = prompt("Nuevo Valor:");
+        if(val) {
+            let body = mod === 'ganaderia' ? {peso:val} : (mod === 'lotes' ? {has:val} : {mm:val});
+            await fetch(`${API}/api/${mod}/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+            location.reload();
+        }
     }
 
     async function eliminar(mod, id) {
