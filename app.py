@@ -8,84 +8,98 @@ app = Flask(__name__)
 CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Base de datos unificada definitiva
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_v20.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_restored.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS DE DATOS PROFESIONALES
+# --- Modelos Originales Recuperados ---
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    caravana = db.Column(db.String(50), unique=True)
-    peso = db.Column(db.Float)
-    estado = db.Column(db.String(50))
+    caravana = db.Column(db.String(50), unique=True, nullable=False)
+    categoria = db.Column(db.String(50), nullable=False)
+    peso = db.Column(db.Float, default=0.0)
+    estado_reproductivo = db.Column(db.String(50), default='VACIA')
+    lat = db.Column(db.Float, default=-26.7)
+    lng = db.Column(db.Float, default=-60.8)
+    activo = db.Column(db.Boolean, default=True)
 
 class Lote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100))
-    cultivo = db.Column(db.String(50))
-    has = db.Column(db.Float)
-    geometria = db.Column(db.Text, nullable=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    cultivo = db.Column(db.String(50), default='Sin Sembrar')
+    hectareas = db.Column(db.Float, default=0.0)
+    lat = db.Column(db.Float, default=-26.7)
+    lng = db.Column(db.Float, default=-60.8)
+    activo = db.Column(db.Boolean, default=True)
 
 class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    mm = db.Column(db.Float)
-    fecha = db.Column(db.String(20))
+    fecha = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    milimetros = db.Column(db.Float, nullable=False)
+    notas = db.Column(db.String(200))
 
-class Gasto(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    concepto = db.Column(db.String(100))
-    monto = db.Column(db.Float)
-    fecha = db.Column(db.String(20))
+# --- Endpoints Restaurados ---
 
-# --- ENDPOINTS ---
 @app.route('/api/resumen')
-def resumen():
-    # Dashboard consolidado real
+def get_resumen():
     return jsonify({
-        "hacienda": Animal.query.count(),
-        "lotes": Lote.query.count(),
-        "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0,
-        "gastos": db.session.query(func.sum(Gasto.monto)).scalar() or 0
+        "animales": Animal.query.filter_by(activo=True).count(),
+        "lotes": Lote.query.filter_by(activo=True).count(),
+        "total_lluvia": db.session.query(func.sum(Lluvia.milimetros)).scalar() or 0
     })
 
-@app.route('/api/<string:modulo>', methods=['GET', 'POST'])
-def gestion_datos(modulo):
-    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
-    model = modelos.get(modulo)
+@app.route('/api/ganaderia', methods=['GET', 'POST'])
+def gestion_ganaderia():
     if request.method == 'POST':
-        d = request.json
-        if modulo == 'ganaderia': db.session.add(Animal(caravana=d['caravana'], peso=d['peso'], estado=d['estado']))
-        elif modulo == 'lotes': db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has'], geometria=d.get('geometria')))
-        elif modulo == 'lluvias': db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
-        elif modulo == 'gastos': db.session.add(Gasto(concepto=d['concepto'], monto=d['monto'], fecha=d['fecha']))
-        db.session.commit()
-        return jsonify({"status": "ok"})
+        data = request.json
+        nuevo = Animal(
+            caravana=data.get('caravana'),
+            categoria=data.get('categoria'),
+            estado_reproductivo=data.get('estado', 'VACIA'),
+            peso=float(data.get('peso', 0)),
+            lat=data.get('lat', -26.7),
+            lng=data.get('lng', -60.8)
+        )
+        db.session.add(nuevo); db.session.commit()
+        return jsonify({"msg": "Registrado"})
     
-    items = model.query.all()
-    # Retorno de datos completo para visualización
-    if modulo == 'ganaderia': return jsonify([{"id":i.id,"caravana":i.caravana,"peso":i.peso,"estado":i.estado} for i in items])
-    if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has,"geometria":i.geometria} for i in items])
-    if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
-    if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
+    animales = Animal.query.filter_by(activo=True).all()
+    return jsonify([{"id":a.id,"caravana":a.caravana,"categoria":a.categoria,"peso":a.peso,"estado":a.estado_reproductivo} for a in animales])
 
-@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
-def acciones(modulo, id):
-    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
-    item = modelos[modulo].query.get_or_404(id)
-    if request.method == 'DELETE':
-        db.session.delete(item)
-    else:
-        d = request.json
-        for key, val in d.items(): setattr(item, key, val)
-    db.session.commit()
+@app.route('/api/agricultura', methods=['GET', 'POST'])
+def gestion_agricultura():
+    if request.method == 'POST':
+        data = request.json
+        nuevo = Lote(
+            nombre=data.get('nombre'),
+            cultivo=data.get('cultivo', 'Barbecho'),
+            hectareas=float(data.get('hectareas', 0)),
+            lat=data.get('lat', -26.7),
+            lng=data.get('lng', -60.8)
+        )
+        db.session.add(nuevo); db.session.commit()
+        return jsonify({"msg": "Lote creado"})
+    
+    lotes = Lote.query.filter_by(activo=True).all()
+    return jsonify([{"id":l.id,"nombre":l.nombre,"cultivo":l.cultivo,"hectareas":l.hectareas} for l in lotes])
+
+@app.route('/api/lluvia', methods=['GET', 'POST'])
+def gestion_lluvia():
+    if request.method == 'POST':
+        data = request.json
+        nueva = Lluvia(milimetros=float(data.get('mm', 0)), notas=data.get('notas', ''))
+        db.session.add(nueva); db.session.commit()
+        return jsonify({"msg": "Lluvia registrada"})
+    lluvias = Lluvia.query.order_by(Lluvia.fecha.desc()).limit(10).all()
+    return jsonify([{"id":l.id,"mm":l.milimetros,"fecha":str(l.fecha)} for l in lluvias])
+
+@app.route('/api/ganaderia/<int:id>', methods=['DELETE'])
+def delete_animal(id):
+    a = Animal.query.get(id)
+    if a: a.activo = False; db.session.commit()
     return jsonify({"status": "ok"})
-
-@app.route('/reset')
-def reset():
-    db.drop_all(); db.create_all()
-    return "SISTEMA REESTABLECIDO - VERSION 20"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
-    app.run(host='0.0.0.0', port=10000)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
