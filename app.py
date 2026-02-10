@@ -3,104 +3,89 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql import func
-from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-# Base de datos relacional robusta
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_pro_v4.db')
+# Base de datos unificada v20
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_v20_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- MODELOS DE DATOS ---
-
+# MODELOS DE DATOS PROFESIONALES
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), unique=True, nullable=False)
+    nombre = db.Column(db.String(100), unique=True)
     raza = db.Column(db.String(50))
     sexo = db.Column(db.String(10))
     edad = db.Column(db.Integer)
     estado = db.Column(db.String(50))
     madre = db.Column(db.String(100))
     padre = db.Column(db.String(100))
-    codigo = db.Column(db.String(50))
-    observaciones = db.Column(db.Text)
-
-class Parto(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    madre_nombre = db.Column(db.String(100), db.ForeignKey('animal.nombre'))
-    fecha = db.Column(db.DateTime, default=func.now())
-    nombre_cria = db.Column(db.String(100))
-    peso_nacimiento = db.Column(db.Float)
-
-class Produccion(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_nombre = db.Column(db.String(100), db.ForeignKey('animal.nombre'))
-    litros = db.Column(db.Float)
-    lactancia_nro = db.Column(db.Integer)
-    fecha = db.Column(db.DateTime, default=func.now())
 
 class Lote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
-    cultivo = db.Column(db.String(50)) # Soja, Girasol, Maíz, etc
+    cultivo = db.Column(db.String(50))
     has = db.Column(db.Float)
-    tenencia = db.Column(db.String(20)) # Propio / Alquilado
-    geometria = db.Column(db.Text) # Polígono del mapa
+    geometria = db.Column(db.Text, nullable=True)
 
-class Finanzas(db.Model):
+class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    tipo = db.Column(db.String(10)) # INGRESO / GASTO
-    unidad = db.Column(db.String(20)) # Ganaderia / Agricultura
+    mm = db.Column(db.Float)
+    fecha = db.Column(db.String(20))
+
+class Gasto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
     concepto = db.Column(db.String(100))
     monto = db.Column(db.Float)
-    fecha = db.Column(db.DateTime, default=func.now())
+    fecha = db.Column(db.String(20))
 
-# --- LÓGICA DE NEGOCIO Y CÁLCULOS ---
-
-@app.route('/api/ficha/<nombre>')
-def get_ficha(nombre):
-    a = Animal.query.filter_by(nombre=nombre).first_or_404()
-    partos = Parto.query.filter_by(madre_nombre=nombre).order_by(Parto.fecha).all()
-    
-    # IEP: Días entre el último y penúltimo parto
-    iep = (partos[-1].fecha - partos[-2].fecha).days if len(partos) > 1 else 0
-    
+# --- ENDPOINTS ---
+@app.route('/api/resumen')
+def resumen():
     return jsonify({
-        "info": {"raza": a.raza, "sexo": a.sexo, "estado": a.estado, "madre": a.madre, "padre": a.padre, "foto": f"{a.nombre}.jpg"},
-        "reproduccion": {"crias": len(partos), "iep": iep, "ultimo": partos[-1].fecha if partos else "N/A"}
-    })
-
-@app.route('/api/produccion/proyeccion/<nombre>/<int:lactancia>')
-def get_proyeccion(nombre, lactancia):
-    datos = Produccion.query.filter_by(animal_nombre=nombre, lactancia_nro=lactancia).all()
-    if not datos: return jsonify({"error": "No hay datos"})
-    
-    # Algoritmo de proyección: Promedio ajustado a 305 días
-    promedio = sum([d.litros for d in datos]) / len(datos)
-    proyeccion = round(promedio * 305, 2)
-    
-    return jsonify({
-        "historico": [{"fecha": d.fecha, "litros": d.litros} for d in datos],
-        "proyeccion_305": proyeccion
+        "hacienda": Animal.query.count(),
+        "lotes": Lote.query.count(),
+        "lluvias": db.session.query(func.sum(Lluvia.mm)).scalar() or 0,
+        "gastos": db.session.query(func.sum(Gasto.monto)).scalar() or 0
     })
 
 @app.route('/api/<string:modulo>', methods=['GET', 'POST'])
-def crud(modulo):
-    modelos = {'animales': Animal, 'lotes': Lote, 'partos': Parto, 'produccion': Produccion, 'finanzas': Finanzas}
+def gestion(modulo):
+    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
     model = modelos.get(modulo)
     if request.method == 'POST':
-        obj = model(**request.json)
-        db.session.add(obj); db.session.commit()
-        return jsonify({"status": "ok", "id": obj.id})
-    return jsonify([dict((c.name, getattr(x, c.name)) for c in x.__table__.columns) for x in model.query.all()])
+        d = request.json
+        if modulo == 'ganaderia': db.session.add(Animal(nombre=d['nombre'], raza=d['raza'], sexo=d['sexo'], edad=d['edad'], estado=d['estado'], madre=d['madre'], padre=d['padre']))
+        elif modulo == 'lotes': db.session.add(Lote(nombre=d['nombre'], cultivo=d['cultivo'], has=d['has'], geometria=d.get('geometria')))
+        elif modulo == 'lluvias': db.session.add(Lluvia(mm=d['mm'], fecha=d['fecha']))
+        elif modulo == 'gastos': db.session.add(Gasto(concepto=d['concepto'], monto=d['monto'], fecha=d['fecha']))
+        db.session.commit()
+        return jsonify({"status": "ok"})
+    
+    items = model.query.all()
+    if modulo == 'ganaderia': return jsonify([{"id":i.id,"nombre":i.nombre,"raza":i.raza,"estado":i.estado} for i in items])
+    if modulo == 'lotes': return jsonify([{"id":i.id,"nombre":i.nombre,"cultivo":i.cultivo,"has":i.has} for i in items])
+    if modulo == 'lluvias': return jsonify([{"id":i.id,"mm":i.mm,"fecha":i.fecha} for i in items])
+    if modulo == 'gastos': return jsonify([{"id":i.id,"concepto":i.concepto,"monto":i.monto,"fecha":i.fecha} for i in items])
+
+@app.route('/api/<string:modulo>/<int:id>', methods=['PUT', 'DELETE'])
+def acciones(modulo, id):
+    modelos = {'ganaderia': Animal, 'lotes': Lote, 'lluvias': Lluvia, 'gastos': Gasto}
+    item = modelos[modulo].query.get_or_404(id)
+    if request.method == 'DELETE': db.session.delete(item)
+    else:
+        d = request.json
+        for key, val in d.items(): setattr(item, key, val)
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA INTEGRAL REESTABLECIDO"
+    return "SISTEMA V20 RESTAURADO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()

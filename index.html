@@ -2,59 +2,77 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo Master V4</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroNexo Pro v20</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; flex-direction: row; }
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
         .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; }
-        .main { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 80px; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .btn-action { background: var(--a); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; }
-        #map { height: 60vh; border-radius: 15px; margin-top: 15px; }
+        .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; margin-bottom: 5px; }
+        .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--a); }
+        .main { flex: 1; overflow-y: auto; padding: 25px; padding-bottom: 100px; }
+        .view { display: none; }
+        .view.active { display: block; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid var(--a); }
+        .form-reg { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 6px; }
+        .btn-save { background: var(--a); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #map { height: 60vh; border-radius: 12px; width: 100%; }
 
-        /* Ajustes para Celular */
         @media (max-width: 768px) {
             body { flex-direction: column; }
-            .sidebar { width: 100%; height: auto; position: fixed; bottom: 0; z-index: 1000; padding: 10px; flex-direction: row; justify-content: space-around; }
+            .sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; position: fixed; bottom: 0; left: 0; z-index: 1000; justify-content: space-around; }
             .sidebar h2 { display: none; }
-            .nav-btn { flex-direction: column; font-size: 10px; width: auto; }
+            .nav-btn { flex-direction: column; font-size: 10px; width: auto; padding: 5px; text-align: center; }
         }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2 style="color:var(--a)">AgroNexo</h2>
+        <h2 style="color:var(--a); margin-bottom: 20px;">AgroNexo</h2>
         <button class="nav-btn active" onclick="go('inicio')"><i class="fas fa-home"></i> Inicio</button>
-        <button class="nav-btn" onclick="go('ganaderia')"><i class="fas fa-cow"></i> Hacienda</button>
-        <button class="nav-btn" onclick="go('lotes')"><i class="fas fa-seedling"></i> Lotes</button>
         <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map"></i> Mapa</button>
+        <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Hacienda</button>
+        <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
+        <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
+        <button class="nav-btn" onclick="go('gasto')" style="color:#fbbf24"><i class="fas fa-wallet"></i> Gastos</button>
     </div>
 
     <div class="main">
         <div id="inicio" class="view active">
             <h1>Dashboard Consolidado</h1>
-            <div id="resumen-grid"></div>
+            <div class="card-grid">
+                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-size:24px;font-weight:bold">--</div></div>
+                <div class="card"><h4>Lotes</h4><div id="c-lot" style="font-size:24px;font-weight:bold">--</div></div>
+                <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-size:24px;font-weight:bold">-- mm</div></div>
+                <div class="card"><h4>Gastos</h4><div id="c-gastos" style="font-size:24px;font-weight:bold;color:red">$ --</div></div>
+            </div>
         </div>
 
-        <div id="ganaderia" class="view">
-            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                <div class="card" style="flex: 1; min-width: 300px;">
-                    <img id="ani-foto" src="placeholder.jpg" style="width: 100%; border-radius: 10px;">
-                    <button class="btn-action" onclick="tts()"><i class="fas fa-volume-up"></i> Escuchar Nombre</button>
-                </div>
-                <div class="card" style="flex: 2; min-width: 300px;">
-                    <h2 id="ani-nombre">Nombre Animal</h2>
-                    <div id="ani-datos"></div>
-                    <canvas id="ani-chart" style="margin-top: 20px;"></canvas>
-                </div>
+        <div id="vaca" class="view">
+            <h2>Nueva Hacienda Braford</h2>
+            <div class="form-reg">
+                <input id="n" placeholder="Nombre/Caravana">
+                <input id="r" placeholder="Raza">
+                <input id="e" placeholder="Estado (Preñada/Vacia)">
+                <button class="btn-save" onclick="save('ganaderia')">GUARDAR ANIMAL</button>
             </div>
+            <table id="t-vaca" width="100%"><thead><tr><th>Nombre</th><th>Raza</th><th>Estado</th><th>Acción</th></tr></thead><tbody></tbody></table>
+        </div>
+
+        <div id="lote" class="view">
+            <h2>Registro de Lotes</h2>
+            <div class="form-reg">
+                <input id="ln" placeholder="Nombre del Lote">
+                <input id="lc" placeholder="Cultivo">
+                <input id="lh" type="number" placeholder="Hectáreas">
+                <button class="btn-save" onclick="save('lotes')">GUARDAR LOTE</button>
+            </div>
+            <table id="t-lote" width="100%"><thead><tr><th>Lote</th><th>Cultivo</th><th>Has</th><th>Acción</th></tr></thead><tbody></tbody></table>
         </div>
 
         <div id="mapa" class="view"><div id="map"></div></div>
@@ -62,39 +80,47 @@
 
 <script>
     const API = "https://agronexo-backend.onrender.com";
-    let map;
-
     function go(id) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(id).classList.add('active');
         if(id === 'mapa') setTimeout(initMap, 200);
+        loadData(id);
     }
 
-    function tts() {
-        const text = document.getElementById('ani-nombre').innerText;
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    async function save(mod) {
+        let body = {};
+        if(mod === 'ganaderia') body = {nombre:document.getElementById('n').value, raza:document.getElementById('r').value, sexo:'H', edad:0, estado:document.getElementById('e').value, madre:'', padre:''};
+        else if(mod === 'lotes') body = {nombre:document.getElementById('ln').value, cultivo:document.getElementById('lc').value, has:document.getElementById('lh').value};
+        
+        await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+        location.reload();
+    }
+
+    async function loadData(view) {
+        try {
+            if(view === 'inicio') {
+                const r = await fetch(`${API}/api/resumen`).then(res => res.json());
+                document.getElementById('c-vaca').innerText = r.hacienda;
+                document.getElementById('c-lot').innerText = r.lotes;
+                document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
+                document.getElementById('c-gastos').innerText = `$ ${r.gastos.toLocaleString()}`;
+            } else if (view !== 'mapa') {
+                const mod = view === 'vaca' ? 'ganaderia' : (view === 'lote' ? 'lotes' : (view === 'lluvia' ? 'lluvias' : 'gastos'));
+                const d = await fetch(`${API}/api/${mod}`).then(res => res.json());
+                document.querySelector(`#t-${view} tbody`).innerHTML = d.map(x => `
+                    <tr><td>${x.nombre || x.fecha}</td><td>${x.raza || x.cultivo || x.mm || x.concepto}</td><td>${x.estado || x.has || '$'+x.monto}</td>
+                    <td><button onclick="eliminar('${mod}',${x.id})" style="color:red;border:none;background:none;cursor:pointer"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+            }
+        } catch (e) { console.error(e); }
     }
 
     function initMap() {
-        if(!map) {
-            map = L.map('map').setView([-26.42, -61.41], 13);
-            L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
-            const drawnItems = new L.FeatureGroup().addTo(map);
-            new L.Control.Draw({ draw: {polygon: true}, edit: {featureGroup: drawnItems} }).addTo(map);
-            
-            map.on(L.Draw.Event.CREATED, async function (e) {
-                const nom = prompt("Nombre del Lote:");
-                if(nom) {
-                    await fetch(`${API}/api/lotes`, { 
-                        method:'POST', 
-                        headers:{'Content-Type':'application/json'}, 
-                        body:JSON.stringify({nombre:nom, geometria:JSON.stringify(e.layer.toGeoJSON())}) 
-                    });
-                    location.reload();
-                }
-            });
-        }
+        let map = L.map('map').setView([-26.42, -61.41], 13);
+        L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
     }
+
+    window.onload = () => loadData('inicio');
 </script>
 </body>
 </html>
