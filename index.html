@@ -1,140 +1,87 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AgroNexo Master</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw@0.4.12/dist/leaflet.draw.js"></script>
+    <title>AgroNexo Master Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --p: #0f172a; --a: #22c55e; --bg: #f8fafc; }
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); overflow: hidden; }
-        .sidebar { width: 240px; background: var(--p); color: white; padding: 20px; flex-shrink: 0; display: flex; flex-direction: column; }
-        .nav-btn { background: none; border: none; color: #cbd5e1; padding: 12px; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 8px; }
-        .nav-btn.active { background: #334155; color: white; border-left: 4px solid var(--a); }
-        .main { flex: 1; overflow-y: auto; padding: 25px; padding-bottom: 80px; }
-        .view { display: none; }
-        .view.active { display: block; }
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid var(--a); }
-        .table-container { width: 100%; overflow-x: auto; background: white; border-radius: 10px; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; min-width: 600px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        #map { height: 65vh; border-radius: 12px; width: 100%; }
-
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .sidebar { width: 100%; height: 60px; padding: 0; flex-direction: row; position: fixed; bottom: 0; left: 0; z-index: 1000; justify-content: space-around; }
-            .sidebar h2 { display: none; }
-            .nav-btn { flex-direction: column; font-size: 10px; width: auto; padding: 5px; text-align: center; }
-            .nav-btn i { font-size: 18px; }
-            .nav-btn.active { border-left: none; border-top: 4px solid var(--a); background: none; }
-            .main { padding: 15px; }
-        }
+        .ficha-container { display: grid; grid-template-columns: 300px 1fr; gap: 20px; background: white; padding: 20px; border-radius: 15px; }
+        .animal-img { width: 100%; border-radius: 10px; border: 3px solid #22c55e; }
+        .stats-card { background: #f8fafc; padding: 15px; border-radius: 10px; margin-top: 10px; border-left: 5px solid #22c55e; }
     </style>
 </head>
-<body>
-    <div class="sidebar">
-        <h2 style="color:var(--a); margin-left: 10px;">AgroNexo</h2>
-        <button class="nav-btn active" onclick="go('inicio')"><i class="fas fa-home"></i> Inicio</button>
-        <button class="nav-btn" onclick="go('mapa')"><i class="fas fa-map"></i> Mapa</button>
-        <button class="nav-btn" onclick="go('vaca')"><i class="fas fa-cow"></i> Vacas</button>
-        <button class="nav-btn" onclick="go('lote')"><i class="fas fa-seedling"></i> Lotes</button>
-        <button class="nav-btn" onclick="go('lluvia')"><i class="fas fa-cloud-rain"></i> Lluvia</button>
-    </div>
-    <div class="main">
-        <div id="inicio" class="view active">
-            <h1>Dashboard</h1>
-            <div class="card-grid">
-                <div class="card"><h4>Hacienda</h4><div id="c-vaca" style="font-weight:bold">--</div></div>
-                <div class="card"><h4>Lotes</h4><div id="c-lot" style="font-weight:bold">--</div></div>
-                <div class="card"><h4>Lluvia</h4><div id="c-lluvia" style="font-weight:bold">-- mm</div></div>
+<body style="background:#f1f5f9; font-family:sans-serif;">
+
+    <div style="max-width: 1000px; margin: auto; padding: 20px;">
+        <h1>Dashboard Ganadero</h1>
+        
+        <div class="ficha-container">
+            <div>
+                <img id="foto-animal" src="placeholder.jpg" class="animal-img">
+                <button onclick="leerNombre()" style="width:100%; margin-top:10px; padding:10px;">
+                    <i class="fas fa-volume-up"></i> Escuchar Nombre
+                </button>
+            </div>
+            
+            <div id="info-animal">
+                <h2 id="disp-nombre">Seleccione un Animal</h2>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="stats-card">Raza: <b id="disp-raza">-</b></div>
+                    <div class="stats-card">Estado: <b id="disp-estado">-</b></div>
+                    <div class="stats-card">IEP (Días): <b id="disp-iep">-</b></div>
+                    <div class="stats-card">Crías Totales: <b id="disp-crias">-</b></div>
+                </div>
             </div>
         </div>
-        <div id="mapa" class="view"><div id="map"></div></div>
-        
-        <div id="vaca" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Hacienda</h2><button onclick="nuevo('vaca')" style="background:var(--a);color:white;border:none;padding:10px;border-radius:5px">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-vaca"><thead><tr><th>ID</th><th>Cat.</th><th>Peso</th><th>Estado</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
-        </div>
 
-        <div id="lote" class="view">
-            <div style="display:flex;justify-content:space-between;align-items:center"><h2>Lotes</h2><button onclick="nuevo('lote')" style="background:var(--a);color:white;border:none;padding:10px;border-radius:5px">+ Nuevo</button></div>
-            <div class="table-container"><table id="t-lote"><thead><tr><th>Nombre</th><th>Cultivo</th><th>Has</th><th>Acción</th></tr></thead><tbody></tbody></table></div>
-        </div>
-        </div>
+        <canvas id="curvaLactancia" style="margin-top:30px; background:white; padding:20px; border-radius:15px;"></canvas>
+    </div>
 
 <script>
     const API = "https://agronexo-backend.onrender.com";
-    let map, drawnItems;
 
-    function go(id) {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        if(id === 'mapa') setTimeout(initMap, 200);
-        loadData(id);
+    // Audio: Text-to-Speech
+    function leerNombre() {
+        const nombre = document.getElementById('disp-nombre').innerText;
+        const msg = new SpeechSynthesisUtterance(nombre);
+        window.speechSynthesis.speak(msg);
     }
 
-    async function loadData(view) {
-        try {
-            if(view === 'inicio') {
-                const r = await fetch(`${API}/api/resumen`).then(res => res.json());
-                document.getElementById('c-vaca').innerText = r.hacienda;
-                document.getElementById('c-lot').innerText = r.lotes;
-                document.getElementById('c-lluvia').innerText = `${r.lluvias} mm`;
-            } else if (view !== 'mapa') {
-                const mod = view === 'vaca' ? 'ganaderia' : (view === 'lote' ? 'lotes' : 'lluvias');
-                const d = await fetch(`${API}/api/${mod}`).then(res => res.json());
-                const tbody = document.querySelector(`#t-${view} tbody`);
-                if(tbody) {
-                    tbody.innerHTML = d.map(x => `
-                        <tr><td>${x.caravana || x.nombre || x.fecha}</td><td>${x.categoria || x.cultivo || x.mm}</td><td>${x.peso ? x.peso+'kg' : (x.has || '')}</td><td>${x.estado || ''}</td>
-                        <td><button onclick="eliminar('${mod}',${x.id})" style="color:red;background:none;border:none"><i class="fas fa-trash"></i></button></td></tr>`).join('');
-                }
+    async function cargarFicha(nombre) {
+        const res = await fetch(`${API}/api/ficha/${nombre}`).then(r => r.json());
+        
+        // Actualizar UI
+        document.getElementById('disp-nombre').innerText = nombre;
+        document.getElementById('disp-raza').innerText = res.datos.raza;
+        document.getElementById('disp-estado').innerText = res.datos.estado;
+        document.getElementById('disp-iep').innerText = res.reproduccion.iep_dias;
+        document.getElementById('disp-crias').innerText = res.reproduccion.cantidad_crias;
+        
+        // Cargar imagen .jpg por nombre exacto
+        document.getElementById('foto-animal').src = `./imagenes/${res.datos.foto}`;
+        
+        cargarGrafica(nombre, 1); // Lactancia 1 por defecto
+    }
+
+    let miChart;
+    async function cargarGrafica(nombre, lactancia) {
+        const res = await fetch(`${API}/api/produccion/proyeccion/${nombre}/${lactancia}`).then(r => r.json());
+        
+        const ctx = document.getElementById('curvaLactancia').getContext('2d');
+        if(miChart) miChart.destroy();
+        
+        miChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: res.historico.map(r => r.fecha),
+                datasets: [{
+                    label: `Lactancia ${lactancia} - Proyección 305d: ${res.proyeccion_total}L`,
+                    data: res.historico.map(r => r.litros),
+                    borderColor: '#22c55e',
+                    tension: 0.3
+                }]
             }
-        } catch (e) { console.error(e); }
+        });
     }
-
-    function initMap() {
-        if(!map) {
-            map = L.map('map').setView([-26.42, -61.41], 13);
-            L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
-            drawnItems = new L.FeatureGroup().addTo(map);
-            new L.Control.Draw({ draw:{polygon:true,polyline:false,circle:false,marker:false,circlemarker:false}, edit:{featureGroup:drawnItems} }).addTo(map);
-            map.on(L.Draw.Event.CREATED, async function (e) {
-                const nom = prompt("Nombre:");
-                const cul = prompt("Cultivo:");
-                if(nom) {
-                    await fetch(`${API}/api/lotes`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:nom, cultivo:cul, has:0, geometria:JSON.stringify(e.layer.toGeoJSON())}) });
-                    location.reload();
-                }
-            });
-            cargarPoligonos();
-        }
-    }
-
-    async function cargarPoligonos() {
-        const lotes = await fetch(`${API}/api/lotes`).then(res => res.json());
-        lotes.forEach(l => { if(l.geometria) { L.geoJSON(JSON.parse(l.geometria)).addTo(drawnItems).bindPopup(`<b>${l.nombre}</b>`); } });
-    }
-
-    async function nuevo(tipo) {
-        let mod = tipo === 'vaca' ? 'ganaderia' : (tipo === 'lote' ? 'lotes' : 'lluvias');
-        let body = {};
-        if(tipo === 'vaca') body = {caravana:prompt("ID:"), categoria:prompt("Cat:"), peso:prompt("Peso:"), estado:prompt("Estado:")};
-        else if(tipo === 'lote') body = {nombre:prompt("Nombre:"), cultivo:prompt("Cultivo:"), has:prompt("Has:")};
-        await fetch(`${API}/api/${mod}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-        loadData(tipo);
-    }
-
-    async function eliminar(mod, id) {
-        if(confirm("¿Eliminar?")) { await fetch(`${API}/api/${mod}/${id}`, {method:'DELETE'}); location.reload(); }
-    }
-    window.onload = () => loadData('inicio');
 </script>
 </body>
 </html>
