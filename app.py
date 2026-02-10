@@ -7,32 +7,33 @@ from sqlalchemy.sql import func
 app = Flask(__name__)
 CORS(app)
 
+# Configuración de base de datos final v2.1
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_master.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'agronexo_final_master.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# MODELOS RECUPERADOS DEL HISTORIAL
+# --- MODELOS TÉCNICOS RECUPERADOS ---
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caravana = db.Column(db.String(50), unique=True, nullable=False)
-    categoria = db.Column(db.String(50)) # Vaca, Ternero, Novillo
+    categoria = db.Column(db.String(50))  # Vaca, Novillo, Toro
     peso = db.Column(db.Float, default=0.0)
-    estado = db.Column(db.String(50)) # PREÑADA, VACIA
+    estado = db.Column(db.String(50))  # PREÑADA, VACIA
     activo = db.Column(db.Boolean, default=True)
 
 class Lote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
-    cultivo = db.Column(db.String(50)) # Soja, Maíz, Girasol
+    cultivo = db.Column(db.String(50)) # Soja, Girasol, Maíz
     has = db.Column(db.Float, default=0.0)
-    geometria = db.Column(db.Text, nullable=True) # Coordenadas del mapa
+    geometria = db.Column(db.Text, nullable=True) # Coordenadas mapa
     activo = db.Column(db.Boolean, default=True)
 
 class Lluvia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     mm = db.Column(db.Float, nullable=False)
-    fecha = db.Column(db.String(20)) #
+    fecha = db.Column(db.String(20))
 
 class Gasto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,7 +41,7 @@ class Gasto(db.Model):
     monto = db.Column(db.Float)
     fecha = db.Column(db.String(20))
 
-# --- ENDPOINTS PROFESIONALES ---
+# --- API ENDPOINTS ---
 @app.route('/api/resumen')
 def resumen():
     return jsonify({
@@ -85,8 +86,9 @@ def acciones(modulo, id):
 @app.route('/reset')
 def reset():
     db.drop_all(); db.create_all()
-    return "SISTEMA RESTAURADO"
+    return "SISTEMA MASTER V2.1 RESTAURADO"
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
-    app.run(host='0.0.0.0', port=10000)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
